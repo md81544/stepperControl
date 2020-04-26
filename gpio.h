@@ -10,9 +10,6 @@
 namespace mgo
 {
 
-//typedef void (*eventFuncEx_t)
-//   (int event, int level, uint32_t tick, void *userdata);
-
 class GpioException: public std::runtime_error
 {
 public:
