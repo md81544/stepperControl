@@ -26,8 +26,9 @@ public:
         int   reversePin
         );
     virtual ~Gpio();
-    void setStepPin( PinState ) override;
-    void setReversePin( PinState ) override;
+    int addMotor( int stepPin, int reversePin );
+    void setStepPin( int motor, PinState ) override;
+    void setReversePin( int motor, PinState ) override;
     void setRotaryEncoderCallback(
         int pinA,
         int pinB,
@@ -37,8 +38,8 @@ public:
     void delayMicroSeconds( long usecs ) override;
     uint32_t getTick() override;
 private:
-    int m_stepPin;
-    int m_reversePin;
+    std::vector<int> m_stepPins;
+    std::vector<int> m_reversePins;
     int m_pinA{ 0 };
     int m_pinB{ 0 };
 };

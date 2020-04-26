@@ -3,12 +3,7 @@
 namespace mgo
 {
 
-Gpio::Gpio(
-    int   stepPin,
-    int   reversePin
-    )
-    :   m_stepPin( stepPin ),
-        m_reversePin( reversePin )
+Gpio::Gpio()
 {
     if ( gpioInitialise() < 0 )
     {
@@ -23,14 +18,21 @@ Gpio::~Gpio()
     gpioTerminate();
 }
 
-void Gpio::setStepPin( PinState state )
+int Gpio::addMotor( int stepPin, int reversePin )
 {
-    gpioWrite( m_stepPin, state == PinState::high ? 1 : 0 );
+    m_stepPins.push_back( stepPin );
+    m_reversePins.push_back( reversePin );
+    return static_cast<int>( m_stepPins.size() -1 );
 }
 
-void Gpio::setReversePin( PinState state )
+void Gpio::setStepPin( int motor, PinState state )
 {
-    gpioWrite( m_reversePin, state == PinState::high ? 1 : 0 );
+    gpioWrite( m_stepPins.at[ motor ], state == PinState::high ? 1 : 0 );
+}
+
+void Gpio::setReversePin( int motor, PinState state )
+{
+    gpioWrite( m_reversePins.at[ motor ], state == PinState::high ? 1 : 0 );
 }
 
 void Gpio::setRotaryEncoderCallback(

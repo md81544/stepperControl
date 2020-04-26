@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <functional>
 #include <sstream>
 #include <thread>
@@ -24,41 +25,46 @@ public:
     explicit MockGpio( bool printDiags )
         : m_print( printDiags )
     {
-        print( "Initialising GPIO library" );
+        print() <<  "Initialising GPIO library\n";
     }
 
     virtual ~MockGpio()
     {
-        print( "Terminating GPIO library" );
+        print() << "Terminating GPIO library\n";
         m_terminate = true;
         if( m_callbacker.joinable() )
         {
-            print( "Waiting for callbacker thread to terminate" );
+            print() << "Waiting for callbacker thread to terminate\n";
             m_callbacker.join();
         }
     }
 
-    void setStepPin( PinState state ) override
+    int addMotor( int, int ) override
+    {
+        return m_motorCount++;
+    }
+
+    void setStepPin( int motor, PinState state ) override
     {
         if( state == PinState::high )
         {
-            print( "Setting step pin HIGH" );
+            print() << "Setting step pin HIGH for motor " << motor << "\n";
         }
         else
         {
-            print( "Setting step pin LOW" );
+            print() << "Setting step pin LOW for motor " << motor << "\n";
         }
     }
 
-    void setReversePin( PinState state ) override
+    void setReversePin( int motor, PinState state ) override
     {
         if( state == PinState::high )
         {
-            print( "Setting reverse pin HIGH" );
+            print() << "Setting reverse pin HIGH for motor " << motor << "\n";
         }
         else
         {
-            print( "Setting reverse pin LOW" );
+            print() << "Setting reverse pin LOW for motor " << motor << "\n";
         }
     }
 
@@ -73,7 +79,7 @@ public:
     {
         // class-specific function to allow us to stop the
         // callbacker manually
-        print( "Stopping callbacker" );
+        print() << "Stopping callbacker\n";
         m_terminate = true;
     }
 
@@ -123,20 +129,18 @@ public:
                     }
                     catch( const std::exception& e )
                     {
-                        print( e.what() );
+                        print() <<  e.what() << std::endl;
                         break;
                     }
                 }
-                print( "Callbacker thread ended" );
+                print() << "Callbacker thread ended\n";
             } );
         m_callbacker.swap( t );
     }
 
     void delayMicroSeconds( long usecs ) override
     {
-        std::ostringstream oss;
-        oss << "Sleeping for " << usecs << " usecs";
-        print( oss.str() );
+        print() << "Sleeping for " << usecs << " usecs\n";
         usleep( usecs );
     }
 
@@ -144,13 +148,17 @@ private:
     std::atomic<bool> m_terminate{ false };
     std::thread m_callbacker;
 
+    int m_motorCount{ 0 };
+
     bool  m_print;
-    void  print( const std::string& msg )
+    std::fstream m_devNull;
+    std::ostream&  print()
     {
         if( m_print )
         {
-            std::cout << msg << std::endl;
+            return std::cout;
         }
+        return m_devNull;
     }
 
 };

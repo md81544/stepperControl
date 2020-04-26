@@ -9,13 +9,17 @@ namespace mgo
 
 StepperMotor::StepperMotor(
     IGpio& gpio,
+    int stepPin,
+    int reversePin,
     long stepsPerRevolution
     )
     :   m_gpio( gpio ),
         m_stepsPerRevolution( stepsPerRevolution )
 {
+    m_motorNumber = m_gpio.addMotor( stepPin, reversePin );
     // Ensure we start off with the right direction
     m_gpio.setReversePin(
+        m_motorNumber,
         m_direction == Direction::forward ?
             PinState::low : PinState::high
         );
@@ -51,15 +55,16 @@ StepperMotor::StepperMotor(
                     {
                         // Ensure direction pin is set correctly
                         m_gpio.setReversePin(
+                            m_motorNumber,
                             m_direction == Direction::forward ?
                                 PinState::low : PinState::high
                             );
                         oldDirection = m_direction;
                     }
                     // Do step pulse
-                    m_gpio.setStepPin( PinState::high );
+                    m_gpio.setStepPin( m_motorNumber, PinState::high );
                     m_gpio.delayMicroSeconds( m_delay );
-                    m_gpio.setStepPin( PinState::low );
+                    m_gpio.setStepPin( m_motorNumber, PinState::low );
                     // Second part of the delay is at the end of the loop
                     if ( m_targetStep < m_currentStep )
                     {

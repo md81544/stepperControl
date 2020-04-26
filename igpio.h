@@ -21,9 +21,10 @@ enum class PinState
 class IGpio
 {
 public:
-    // Support for stepper motor:
-    virtual void setStepPin( PinState ) = 0;
-    virtual void setReversePin( PinState ) = 0;
+    // Support for stepper motors:
+    virtual int addMotor( int stepPin, int reversePin ) = 0;
+    virtual void setStepPin( int motor,  PinState ) = 0;
+    virtual void setReversePin( int motor, PinState ) = 0;
     // Support for rotary encoder:
     virtual void setRotaryEncoderCallback(
         int pinA,
