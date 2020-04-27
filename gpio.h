@@ -6,6 +6,7 @@
 #include "pigpio.h"
 
 #include <stdexcept>
+#include <vector>
 
 namespace mgo
 {
@@ -21,10 +22,7 @@ public:
 class Gpio : public IGpio
 {
 public:
-    Gpio(
-        int   stepPin,
-        int   reversePin
-        );
+    Gpio();
     virtual ~Gpio();
     int addMotor( int stepPin, int reversePin );
     void setStepPin( int motor, PinState ) override;
