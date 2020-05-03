@@ -21,8 +21,10 @@ public:
     StepperMotor(
         IGpio&  gpio,
         int     stepPin,
-        int     reversePint,
-        long    stepsPerRevolution
+        int     reversePin,
+        int     enablePin,
+        long    stepsPerRevolution,
+        double  conversionFactor
         );
     ~StepperMotor();
     bool isRunning() const;
@@ -41,6 +43,12 @@ public:
     void stop();
     // Block until the current operation completes
     void wait();
+    // Return position in real-world (but arbitrary) units,
+    // for example mm along an axis. Simply returns the
+    // supplied conversion factor multiplied by current step
+    double getPosition() const;
+    // Do conversion on a value which isn't the current step:
+    double getPosition( long step ) const;
 private:
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
@@ -56,6 +64,7 @@ private:
     // lock should be taken before any code outside the
     // background thread changes any member variables
     std::mutex  m_mtx;
+    double m_conversionFactor;
 };
 
 } // end namespace

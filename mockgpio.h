@@ -39,7 +39,7 @@ public:
         }
     }
 
-    int addMotor( int, int ) override
+    int addMotor( int, int, int ) override
     {
         return m_motorCount++;
     }
@@ -65,6 +65,18 @@ public:
         else
         {
             print() << "Setting reverse pin LOW for motor " << motor << "\n";
+        }
+    }
+
+    void setEnablePin( int motor, PinState state ) override
+    {
+        if( state == PinState::high )
+        {
+            print() << "Setting enable pin HIGH for motor " << motor << "\n";
+        }
+        else
+        {
+            print() << "Setting enable pin LOW for motor " << motor << "\n";
         }
     }
 

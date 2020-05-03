@@ -11,12 +11,15 @@ StepperMotor::StepperMotor(
     IGpio& gpio,
     int stepPin,
     int reversePin,
-    long stepsPerRevolution
+    int enablePin,
+    long stepsPerRevolution,
+    double conversionFactor
     )
     :   m_gpio( gpio ),
-        m_stepsPerRevolution( stepsPerRevolution )
+        m_stepsPerRevolution( stepsPerRevolution ),
+        m_conversionFactor( conversionFactor )
 {
-    m_motorNumber = m_gpio.addMotor( stepPin, reversePin );
+    m_motorNumber = m_gpio.addMotor( stepPin, reversePin, enablePin );
     // Ensure we start off with the right direction
     m_gpio.setReversePin(
         m_motorNumber,
@@ -191,6 +194,16 @@ bool StepperMotor::isRunning() const
 Direction StepperMotor::getDirection() const
 {
     return m_direction;
+}
+
+double StepperMotor::getPosition() const
+{
+    return m_currentStep * m_conversionFactor;
+}
+
+double StepperMotor::getPosition( long step) const
+{
+    return step * m_conversionFactor;
 }
 
 } // end namespace

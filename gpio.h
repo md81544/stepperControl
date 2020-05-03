@@ -24,9 +24,10 @@ class Gpio : public IGpio
 public:
     Gpio();
     virtual ~Gpio();
-    int addMotor( int stepPin, int reversePin );
+    int addMotor( int stepPin, int reversePin, int enablePin ) override;
     void setStepPin( int motor, PinState ) override;
     void setReversePin( int motor, PinState ) override;
+    void setEnablePin( int motor, PinState ) override;
     void setRotaryEncoderCallback(
         int pinA,
         int pinB,
@@ -38,6 +39,7 @@ public:
 private:
     std::vector<int> m_stepPins;
     std::vector<int> m_reversePins;
+    std::vector<int> m_enablePins;
     int m_pinA{ 0 };
     int m_pinB{ 0 };
 };

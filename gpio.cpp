@@ -18,10 +18,11 @@ Gpio::~Gpio()
     gpioTerminate();
 }
 
-int Gpio::addMotor( int stepPin, int reversePin )
+int Gpio::addMotor( int stepPin, int reversePin, int enablePin )
 {
     m_stepPins.push_back( stepPin );
     m_reversePins.push_back( reversePin );
+    m_enablePins.push_back( reversePin );
     return static_cast<int>( m_stepPins.size() -1 );
 }
 
@@ -33,6 +34,11 @@ void Gpio::setStepPin( int motor, PinState state )
 void Gpio::setReversePin( int motor, PinState state )
 {
     gpioWrite( m_reversePins.at( motor ), state == PinState::high ? 1 : 0 );
+}
+
+void Gpio::setEnablePin( int motor, PinState state )
+{
+    gpioWrite( m_enablePins.at( motor ), state == PinState::high ? 1 : 0 );
 }
 
 void Gpio::setRotaryEncoderCallback(
