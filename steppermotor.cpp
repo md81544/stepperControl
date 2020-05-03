@@ -1,5 +1,6 @@
 #include "steppermotor.h"
 #include "igpio.h"
+#include "../log.h"
 
 #include <cstdint>
 #include <cmath>
@@ -137,16 +138,12 @@ void StepperMotor::stop()
 
 void StepperMotor::setRpm( double rpm )
 {
-    // TODO - it so happens that one RPM is one mm per minute
-    // for my leadscrew and gearing - but this function should
-    // be to set a specific feed rate in mm per second or minute.
-
-    // m_delay (in µsecs) is used twice per thread loop
+    // NB m_delay (in µsecs) is used TWICE per thread loop
     std::lock_guard<std::mutex> mtx( m_mtx );
     if ( rpm < 0.1 )
     {
         // Arbitrarily anything lower than this
-        // and we stop/
+        // and we stop
         m_stop = true;
         return;
     }
