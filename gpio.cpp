@@ -22,7 +22,7 @@ int Gpio::addMotor( int stepPin, int reversePin, int enablePin )
 {
     m_stepPins.push_back( stepPin );
     m_reversePins.push_back( reversePin );
-    m_enablePins.push_back( reversePin );
+    m_enablePins.push_back( enablePin );
     return static_cast<int>( m_stepPins.size() -1 );
 }
 
