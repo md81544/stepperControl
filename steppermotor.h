@@ -24,7 +24,8 @@ public:
         int     reversePin,
         int     enablePin,
         long    stepsPerRevolution,
-        double  conversionFactor
+        double  conversionFactor,
+        double  maxRpm
         );
     ~StepperMotor();
     bool isRunning() const;
@@ -36,6 +37,10 @@ public:
     void goToStep( long step );
     // Set motor speed
     void setRpm( double rpm );
+    // Get motor speed as set with setRpm()
+    double getRpm();
+    // Get speed limit as set by ctor
+    double getMaxRpm();
     // Get current delay value. Can't think of a
     // purpose for this apart from unit testing :)
     int getDelay();
@@ -65,6 +70,8 @@ private:
     // background thread changes any member variables
     std::mutex  m_mtx;
     double m_conversionFactor;
+    double m_rpm{ 0.0 };
+    double m_maxRpm;
 };
 
 } // end namespace

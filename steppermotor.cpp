@@ -14,11 +14,13 @@ StepperMotor::StepperMotor(
     int reversePin,
     int enablePin,
     long stepsPerRevolution,
-    double conversionFactor
+    double conversionFactor,
+    double maxRpm
     )
     :   m_gpio( gpio ),
         m_stepsPerRevolution( stepsPerRevolution ),
-        m_conversionFactor( conversionFactor )
+        m_conversionFactor( conversionFactor ),
+        m_maxRpm( maxRpm )
 {
     m_motorNumber = m_gpio.addMotor( stepPin, reversePin, enablePin );
     // Ensure we start off with the right direction
@@ -138,15 +140,19 @@ void StepperMotor::stop()
 
 void StepperMotor::setRpm( double rpm )
 {
+    if( rpm < 0 ) rpm = 0;
+    if( rpm > m_maxRpm ) rpm = m_maxRpm;
     // NB m_delay (in µsecs) is used TWICE per thread loop
     std::lock_guard<std::mutex> mtx( m_mtx );
     if ( rpm < 0.1 )
     {
         // Arbitrarily anything lower than this
         // and we stop
+        m_rpm = 0;
         m_stop = true;
         return;
     }
+    m_rpm = rpm;
     m_delay = std::round( 500'000.0 /
             ( static_cast<double>( m_stepsPerRevolution ) * ( rpm / 60.0 ) )
         );
@@ -156,6 +162,16 @@ void StepperMotor::setRpm( double rpm )
         // motor won't be able to keep up
         m_delay = 10;
     }
+}
+
+double StepperMotor::getRpm()
+{
+    return m_rpm;
+}
+
+double StepperMotor::getMaxRpm()
+{
+    return m_maxRpm;
 }
 
 int StepperMotor::getDelay()
