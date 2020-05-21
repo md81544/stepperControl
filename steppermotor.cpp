@@ -69,9 +69,9 @@ StepperMotor::StepperMotor(
                     }
                     // Do step pulse
                     m_gpio.setStepPin( m_motorNumber, PinState::high );
-                    m_gpio.delayMicroSeconds( m_delay );
+                    // Spin for first delay amount:
+                    while( m_gpio.getTick() - startTick < static_cast<uint32_t>( m_delay ) );
                     m_gpio.setStepPin( m_motorNumber, PinState::low );
-                    // Second part of the delay is at the end of the loop
                     if ( m_targetStep < m_currentStep )
                     {
                         --m_currentStep;
