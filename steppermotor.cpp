@@ -1,6 +1,6 @@
 #include "steppermotor.h"
+
 #include "igpio.h"
-#include "../log.h"
 
 #include <cstdint>
 #include <cmath>
@@ -134,8 +134,13 @@ void StepperMotor::goToStep( long step )
 
 void StepperMotor::stop()
 {
-    std::lock_guard<std::mutex> mtx( m_mtx );
-    m_stop = true;
+    {
+        std::lock_guard<std::mutex> mtx( m_mtx );
+        m_stop = true;
+    }
+    // Wait before returning to allow the stop to be acted on
+    // by the stepper thread
+    m_gpio.delayMicroSeconds( 50'000 );
 }
 
 void StepperMotor::setRpm( double rpm )
@@ -192,8 +197,12 @@ long StepperMotor::getTargetStep() const
 
 void StepperMotor::zeroPosition()
 {
-    std::lock_guard<std::mutex> mtx( m_mtx );
-    m_currentStep = 0;
+    {
+        std::lock_guard<std::mutex> mtx( m_mtx );
+        m_currentStep = 0L;
+        m_targetStep = 0L;
+    }
+    stop();
 }
 
 void StepperMotor::wait()
