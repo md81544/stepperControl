@@ -31,6 +31,7 @@ public:
     bool isRunning() const;
     Direction getDirection() const;
     long getCurrentStep() const;
+    long getTargetStep() const;
     // Call the current step position zero
     void zeroPosition();
     // Go to a specific step

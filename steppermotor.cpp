@@ -185,6 +185,11 @@ long StepperMotor::getCurrentStep() const
     return m_currentStep;
 }
 
+long StepperMotor::getTargetStep() const
+{
+    return m_targetStep;
+}
+
 void StepperMotor::zeroPosition()
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
