@@ -174,6 +174,11 @@ double StepperMotor::getRpm()
     return m_rpm;
 }
 
+double StepperMotor::getSpeed()
+{
+    return m_rpm * m_stepsPerRevolution * m_conversionFactor;
+}
+
 double StepperMotor::getMaxRpm()
 {
     return m_maxRpm;

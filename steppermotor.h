@@ -40,6 +40,8 @@ public:
     void setRpm( double rpm );
     // Get motor speed as set with setRpm()
     double getRpm();
+    // Get motor speed as set with setRpm(), but in units/min
+    double getSpeed();
     // Get speed limit as set by ctor
     double getMaxRpm();
     // Get current delay value. Can't think of a
