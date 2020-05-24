@@ -169,6 +169,12 @@ void StepperMotor::setRpm( double rpm )
     }
 }
 
+void StepperMotor::setSpeed( double speed)
+{
+    double rpm = std::abs( speed / m_conversionFactor / m_stepsPerRevolution );
+    setRpm( rpm );
+}
+
 double StepperMotor::getRpm()
 {
     return m_rpm;
@@ -176,7 +182,7 @@ double StepperMotor::getRpm()
 
 double StepperMotor::getSpeed()
 {
-    return m_rpm * m_stepsPerRevolution * m_conversionFactor;
+    return std::abs( m_rpm * m_stepsPerRevolution * m_conversionFactor );
 }
 
 double StepperMotor::getMaxRpm()

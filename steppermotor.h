@@ -36,8 +36,10 @@ public:
     void zeroPosition();
     // Go to a specific step
     void goToStep( long step );
-    // Set motor speed
+    // Set motor speed in RPM (i.e. doesn't care about gearing)
     void setRpm( double rpm );
+    // Set motor speed in units/min, (i.e. after gearing)
+    void setSpeed( double speed );
     // Get motor speed as set with setRpm()
     double getRpm();
     // Get motor speed as set with setRpm(), but in units/min
