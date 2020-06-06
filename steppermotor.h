@@ -59,6 +59,8 @@ public:
     double getPosition() const;
     // Do conversion on a value which isn't the current step:
     double getPosition( long step ) const;
+    // Set position in UNITS not steps
+    void setPosition( double mm );
 private:
     int m_motorNumber{ 0 };
     IGpio& m_gpio;

@@ -244,4 +244,9 @@ double StepperMotor::getPosition( long step) const
     return step * m_conversionFactor;
 }
 
+void StepperMotor::setPosition( double mm )
+{
+    goToStep( mm / m_conversionFactor );
+}
+
 } // end namespace
