@@ -51,11 +51,11 @@ StepperMotor::StepperMotor(
                 }
                 if ( m_stop )
                 {
-                    m_targetStep = long( m_currentStep );
+                    m_targetStep = long( m_currentReportedStep );
                     m_stop = false;
                     m_busy = false;
                 }
-                if( m_targetStep != m_currentStep )
+                if( m_targetStep != m_currentReportedStep )
                 {
                     if ( oldDirection != m_direction )
                     {
@@ -72,15 +72,33 @@ StepperMotor::StepperMotor(
                     // Spin for first delay amount:
                     while( m_gpio.getTick() - startTick < static_cast<uint32_t>( m_delay ) );
                     m_gpio.setStepPin( m_motorNumber, PinState::low );
-                    if ( m_targetStep < m_currentStep )
+                    if ( m_targetStep < m_currentReportedStep )
                     {
-                        --m_currentStep;
+                        // we only start counting steps once the slack of the backlash
+                        // compensation has been taken up
+                        if( m_backlashPosition == 0 )
+                        {
+                            --m_currentReportedStep;
+                        }
+                        else
+                        {
+                            --m_backlashPosition;
+                        }
+                        --m_currentActualStep; // This is only used for testing
                     }
                     else
                     {
-                        ++m_currentStep;
+                        if( m_backlashPosition == m_backlashSize )
+                        {
+                            ++m_currentReportedStep;
+                        }
+                        else
+                        {
+                            ++m_backlashPosition;
+                        }
+                        ++m_currentActualStep; // This is only used for testing
                     }
-                    if ( m_currentStep == m_targetStep )
+                    if ( m_currentReportedStep == m_targetStep )
                     {
                         m_busy = false;
                     }
@@ -119,12 +137,12 @@ void StepperMotor::goToStep( long step )
         // step location.
         return;
     }
-    if ( m_currentStep == step )
+    if ( m_currentReportedStep == step )
     {
         return;
     }
     m_direction = Direction::forward;
-    if ( step < m_currentStep )
+    if ( step < m_currentReportedStep )
     {
         m_direction = Direction::reverse;
     }
@@ -198,7 +216,7 @@ int StepperMotor::getDelay()
 
 long StepperMotor::getCurrentStep() const
 {
-    return m_currentStep;
+    return m_currentReportedStep;
 }
 
 long StepperMotor::getTargetStep() const
@@ -210,7 +228,7 @@ void StepperMotor::zeroPosition()
 {
     {
         std::lock_guard<std::mutex> mtx( m_mtx );
-        m_currentStep = 0L;
+        m_currentReportedStep = 0L;
         m_targetStep = 0L;
     }
     stop();
@@ -236,7 +254,7 @@ Direction StepperMotor::getDirection() const
 
 double StepperMotor::getPosition() const
 {
-    return m_currentStep * m_conversionFactor;
+    return m_currentReportedStep * m_conversionFactor;
 }
 
 double StepperMotor::getPosition( long step) const
@@ -247,6 +265,28 @@ double StepperMotor::getPosition( long step) const
 void StepperMotor::setPosition( double mm )
 {
     goToStep( mm / m_conversionFactor );
+}
+
+void StepperMotor::setBacklashCompensation(
+    unsigned int compensation,
+    unsigned int currentPosition
+    )
+{
+    std::lock_guard<std::mutex> mtx( m_mtx );
+    m_backlashSize = compensation;
+    if( currentPosition > compensation )
+    {
+        m_backlashPosition = compensation;
+    }
+    else
+    {
+        m_backlashPosition = currentPosition;
+    }
+}
+
+long StepperMotor::getCurrentStepWithoutBacklashCompensation() const
+{
+    return m_currentActualStep;
 }
 
 } // end namespace

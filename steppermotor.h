@@ -61,6 +61,14 @@ public:
     double getPosition( long step ) const;
     // Set position in UNITS not steps
     void setPosition( double mm );
+    // Set backlash compensation. The number of steps the system has should be
+    // measured. currentPosition should be either zero if slack has been taken
+    // up moving negatively, or equal to steps if slack has been taken up by moving
+    // in the positive direction of the axis ( i.e. outwards on X or Z ). If this is
+    // never called then the motor works as if there is no backlash at all.
+    void setBacklashCompensation( unsigned int steps, unsigned int currentPosition );
+    // Only really needed for testing:
+    long getCurrentStepWithoutBacklashCompensation() const;
 private:
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
@@ -69,7 +77,10 @@ private:
     std::atomic<bool>      m_terminateThread{ false };
     std::atomic<long>      m_targetStep{ 0 };
     std::atomic<bool>      m_busy{ false };
-    std::atomic<long>      m_currentStep{ 0 };
+    // What step the motor reports that it is on (this is adjusted for backlash):
+    std::atomic<long>      m_currentReportedStep{ 0 };
+    // Actual current step regardless of backlash compensation (only used for testing):
+    std::atomic<long>      m_currentActualStep{ 0 };
     std::atomic<bool>      m_stop{ false };
     std::atomic<int>       m_delay{ 500 }; // µsecs
     std::atomic<Direction> m_direction{ Direction::forward };
@@ -79,6 +90,8 @@ private:
     double m_conversionFactor;
     double m_rpm{ 0.0 };
     double m_maxRpm;
+    unsigned int m_backlashSize{ 0 };
+    unsigned int m_backlashPosition{ 0 };
 };
 
 } // end namespace
