@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <pthread.h>
 
 namespace mgo
 {
@@ -116,6 +117,10 @@ StepperMotor::StepperMotor(
     );
     // Store the thread's handle in m_thread
     m_thread.swap(t);
+    // Set the thread's scheduling to be real-time; cannot do this portably:
+    sched_param schedParams;
+    schedParams.sched_priority = 1;
+    pthread_setschedparam( m_thread.native_handle(), SCHED_RR, &schedParams );
 }
 
 
