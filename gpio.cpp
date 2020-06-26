@@ -1,3 +1,5 @@
+#ifndef FAKE
+
 #include "gpio.h"
 
 namespace mgo
@@ -72,3 +74,5 @@ uint32_t Gpio::getTick()
 }
 
 } // end namespace
+
+#endif
