@@ -294,4 +294,9 @@ long StepperMotor::getCurrentStepWithoutBacklashCompensation() const
     return m_currentActualStep;
 }
 
+double StepperMotor::getConversionFactor() const
+{
+    return m_conversionFactor;
+}
+
 } // end namespace

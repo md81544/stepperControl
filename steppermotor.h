@@ -69,6 +69,7 @@ public:
     void setBacklashCompensation( unsigned int steps, unsigned int currentPosition );
     // Only really needed for testing:
     long getCurrentStepWithoutBacklashCompensation() const;
+    double getConversionFactor() const;
 private:
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
