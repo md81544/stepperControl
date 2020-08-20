@@ -59,7 +59,9 @@ public:
     double getPosition() const;
     // Do conversion on a value which isn't the current step:
     double getPosition( long step ) const;
-    // Set position in UNITS not steps
+    // Go to position in UNITS not steps
+    void goToPosition( double mm );
+    // Set current position (don't move) in UNITS not steps
     void setPosition( double mm );
     // Set backlash compensation. The number of steps the system has should be
     // measured. currentPosition should be either zero if slack has been taken

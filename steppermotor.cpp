@@ -267,9 +267,20 @@ double StepperMotor::getPosition( long step) const
     return step * m_conversionFactor;
 }
 
-void StepperMotor::setPosition( double mm )
+void StepperMotor::goToPosition( double mm )
 {
     goToStep( mm / m_conversionFactor );
+}
+
+void StepperMotor::setPosition( double mm )
+{
+    {
+        std::lock_guard<std::mutex> mtx( m_mtx );
+        long step = mm / m_conversionFactor;
+        m_currentReportedStep = step;
+        m_targetStep = step;
+    }
+    stop();
 }
 
 void StepperMotor::setBacklashCompensation(
