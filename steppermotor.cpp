@@ -194,7 +194,7 @@ void StepperMotor::setRpm( double rpm )
 
 void StepperMotor::setSpeed( double speed)
 {
-    double rpm = std::abs( speed / m_conversionFactor / m_stepsPerRevolution );
+    const double rpm = std::abs( speed / m_conversionFactor / m_stepsPerRevolution );
     setRpm( rpm );
 }
 
