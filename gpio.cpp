@@ -73,6 +73,11 @@ uint32_t Gpio::getTick()
     return gpioTick();
 }
 
+void Gpio::setSigHandler( int signal, std::function<void(int)> func )
+{
+    gpioSetSignalFunc( signal, func );
+}
+
 } // end namespace
 
 #endif
