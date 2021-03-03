@@ -5,7 +5,6 @@
 // interface to allow the StepperMotor
 // class to be used for tests
 #include <stdint.h>
-#include <functional>
 
 namespace mgo
 {
@@ -37,7 +36,6 @@ public:
     // General:
     virtual void delayMicroSeconds( long ) = 0;
     virtual uint32_t getTick() = 0;
-    virtual void setSigHandler( int, std::function<void(int)>) {};
 };
 
 } // end namespace

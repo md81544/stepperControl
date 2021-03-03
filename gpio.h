@@ -36,7 +36,6 @@ public:
         ) override;
     void delayMicroSeconds( long usecs ) override;
     uint32_t getTick() override;
-    void setSigHandler( int signal, std::function<void(int)> func ) override;
 private:
     std::vector<int> m_stepPins;
     std::vector<int> m_reversePins;
