@@ -73,7 +73,7 @@ uint32_t Gpio::getTick()
     return gpioTick();
 }
 
-void Gpio::setSigHandler( int signal, void(* func)(int) )
+void Gpio::setSigHandler( int signal, std::function<void(int)> func )
 {
     gpioSetSignalFunc( signal, func );
 }
