@@ -106,6 +106,17 @@ StepperMotor::StepperMotor(
                 }
                 delay = m_delay; // remember delay value while in mtx scope
             } // scope for lock_guard
+
+            if( m_busy && m_useRamping && m_rampedRpm < m_rpm )
+            {
+                m_rampedRpm += 0.1;
+                if( m_rampedRpm > m_rpm )
+                {
+                    m_rampedRpm = m_rpm;
+                }
+                m_delay = calculateDelayValue( m_rampedRpm );
+            }
+
             // We always perform the second delay regardless of
             // whether we're stepping, to give the main thread a
             // chance to grab the mutex if needed
@@ -119,8 +130,8 @@ StepperMotor::StepperMotor(
     m_thread.swap(t);
     // Set the thread's scheduling to be real-time; cannot do this portably:
     sched_param schedParams;
-    schedParams.sched_priority = 1;
-    pthread_setschedparam( m_thread.native_handle(), SCHED_RR, &schedParams );
+    schedParams.sched_priority = ::sched_get_priority_max( SCHED_RR );
+    ::pthread_setschedparam( m_thread.native_handle(), SCHED_RR, &schedParams );
 }
 
 
@@ -177,19 +188,21 @@ void StepperMotor::setRpm( double rpm )
         // Arbitrarily anything lower than this
         // and we stop
         m_rpm = 0;
+        m_rampedRpm = 0;
         m_stop = true;
         return;
     }
-    m_rpm = rpm;
-    m_delay = std::round( 500'000.0 /
-            ( static_cast<double>( m_stepsPerRevolution ) * ( rpm / 60.0 ) )
-        );
-    if ( m_delay < 10 )
+    if( m_useRamping && rpm > m_rpm )
     {
-        // Avoid very small delay values as the stepper
-        // motor won't be able to keep up
-        m_delay = 10;
+        // We don't start ramping from zero
+        m_rampedRpm = m_maxRpm * 0.4;
+        if( m_rampedRpm > rpm )
+        {
+            m_rampedRpm = rpm;
+        }
     }
+    m_rpm = rpm;
+    m_delay = calculateDelayValue( m_rpm );
 }
 
 void StepperMotor::setSpeed( double speed)
@@ -308,6 +321,26 @@ long StepperMotor::getCurrentStepWithoutBacklashCompensation() const
 double StepperMotor::getConversionFactor() const
 {
     return m_conversionFactor;
+}
+
+double StepperMotor::calculateDelayValue( double rpm )
+{
+    int delay = std::round( 500'000.0 /
+            ( static_cast<double>( m_stepsPerRevolution ) * ( rpm / 60.0 ) )
+        );
+    if ( delay < 10 )
+    {
+        // Avoid very small delay values as the stepper
+        // motor won't be able to keep up
+        delay = 10;
+    }
+    return delay;
+}
+
+void StepperMotor::enableRamping( bool flag )
+{
+    std::lock_guard<std::mutex> mtx( m_mtx );
+    m_useRamping = flag;
 }
 
 } // end namespace

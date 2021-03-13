@@ -72,6 +72,7 @@ public:
     // Only really needed for testing:
     long getCurrentStepWithoutBacklashCompensation() const;
     double getConversionFactor() const;
+    void enableRamping( bool flag );
 private:
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
@@ -92,9 +93,12 @@ private:
     std::mutex  m_mtx;
     double m_conversionFactor;
     double m_rpm{ 0.0 };
+    double m_rampedRpm{ 0.0 };
     double m_maxRpm;
     unsigned int m_backlashSize{ 0 };
     unsigned int m_backlashPosition{ 0 };
+    bool m_useRamping{ true };
+    double calculateDelayValue( double rpm );
 };
 
 } // end namespace
