@@ -318,6 +318,11 @@ long StepperMotor::getCurrentStepWithoutBacklashCompensation() const
     return m_currentActualStep;
 }
 
+double StepperMotor::getRampedRpm()
+{
+    return m_rampedRpm;
+}
+
 double StepperMotor::getConversionFactor() const
 {
     return m_conversionFactor;
