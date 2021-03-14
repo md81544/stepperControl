@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <thread>
 
@@ -76,7 +77,12 @@ public:
 
     double getConversionFactor() const;
     void enableRamping( bool flag );
+    // Sychronise this motor with another:
+    void synchroniseOn( const StepperMotor * const other, std::function<double(double)> func );
+    void synchroniseOff();
 private:
+    // Internal, only to be used from within an existing lock scope:
+    void goToStepNoLock( long step );
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
     long m_stepsPerRevolution;
@@ -102,6 +108,9 @@ private:
     unsigned int m_backlashPosition{ 0 };
     bool m_useRamping{ true };
     double calculateDelayValue( double rpm );
+    bool m_synchronise{ false };
+    const StepperMotor* m_synchroniseMotor{ nullptr };
+    std::function<double(double)> m_synchroniseFunction;
 };
 
 } // end namespace

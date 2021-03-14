@@ -56,6 +56,11 @@ StepperMotor::StepperMotor(
                     m_stop = false;
                     m_busy = false;
                 }
+                if( m_synchronise && m_synchroniseMotor )
+                {
+                    double pos = m_synchroniseFunction( m_synchroniseMotor->getPosition() );
+                    goToStepNoLock( pos / m_conversionFactor );
+                }
                 if( m_targetStep != m_currentReportedStep )
                 {
                     if ( oldDirection != m_direction )
@@ -141,29 +146,10 @@ StepperMotor::~StepperMotor()
     m_thread.join();
 }
 
-
 void StepperMotor::goToStep( long step )
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
-    if ( m_busy )
-    {
-        // We ignore any request to go to a location if
-        // we are already stepping. The client code can
-        // issue a stop if needed before changing target
-        // step location.
-        return;
-    }
-    if ( m_currentReportedStep == step )
-    {
-        return;
-    }
-    m_direction = Direction::forward;
-    if ( step < m_currentReportedStep )
-    {
-        m_direction = Direction::reverse;
-    }
-    m_busy = true;
-    m_targetStep = step;
+    goToStepNoLock( step );
 }
 
 void StepperMotor::stop()
@@ -346,6 +332,47 @@ void StepperMotor::enableRamping( bool flag )
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
     m_useRamping = flag;
+}
+
+void StepperMotor::synchroniseOn(
+    const StepperMotor* other,
+    std::function<double(double)> func
+    )
+{
+    std::lock_guard<std::mutex> mtx( m_mtx );
+    m_synchronise = true;
+    m_synchroniseMotor = other;
+    m_synchroniseFunction = func;
+}
+
+void StepperMotor::synchroniseOff()
+{
+    m_synchronise = false;
+}
+
+void StepperMotor::goToStepNoLock(long step)
+{
+    // This is an internal function and should only be called
+    // from within an existing locked scope
+    if ( m_busy )
+    {
+        // We ignore any request to go to a location if
+        // we are already stepping. The client code can
+        // issue a stop if needed before changing target
+        // step location.
+        return;
+    }
+    if ( m_currentReportedStep == step )
+    {
+        return;
+    }
+    m_direction = Direction::forward;
+    if ( step < m_currentReportedStep )
+    {
+        m_direction = Direction::reverse;
+    }
+    m_busy = true;
+    m_targetStep = step;
 }
 
 } // end namespace
