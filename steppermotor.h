@@ -73,7 +73,7 @@ public:
     // Only really needed for testing:
     long getCurrentStepWithoutBacklashCompensation() const;
     // Also only needed for testing:
-    double getRampedRpm();
+    double getRampedSpeed();
 
     double getConversionFactor() const;
     void enableRamping( bool flag );

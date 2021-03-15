@@ -191,7 +191,7 @@ void StepperMotor::setRpm( double rpm )
     m_delay = calculateDelayValue( m_rpm );
 }
 
-void StepperMotor::setSpeed( double speed)
+void StepperMotor::setSpeed( double speed )
 {
     const double rpm = std::abs( speed / m_conversionFactor / m_stepsPerRevolution );
     setRpm( rpm );
@@ -304,9 +304,9 @@ long StepperMotor::getCurrentStepWithoutBacklashCompensation() const
     return m_currentActualStep;
 }
 
-double StepperMotor::getRampedRpm()
+double StepperMotor::getRampedSpeed()
 {
-    return m_rampedRpm;
+    return std::abs( m_rampedRpm * m_stepsPerRevolution * m_conversionFactor );
 }
 
 double StepperMotor::getConversionFactor() const
