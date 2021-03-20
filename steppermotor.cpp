@@ -372,6 +372,7 @@ void StepperMotor::goToStepNoLock(long step)
         m_direction = Direction::reverse;
     }
     m_busy = true;
+    m_stop = false;
     m_targetStep = step;
 }
 
