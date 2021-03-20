@@ -169,10 +169,10 @@ void StepperMotor::setRpm( double rpm )
     if( rpm > m_maxRpm ) rpm = m_maxRpm;
     // NB m_delay (in µsecs) is used TWICE per thread loop
     std::lock_guard<std::mutex> mtx( m_mtx );
-    if ( rpm < 0.1 )
+    if ( rpm < 0.00001 )
     {
         // Arbitrarily anything lower than this
-        // and we stop
+        // and we assune zero was required
         m_rpm = 0;
         m_rampedRpm = 0;
         m_stop = true;
