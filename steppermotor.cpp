@@ -56,10 +56,9 @@ StepperMotor::StepperMotor(
                     m_stop = false;
                     m_busy = false;
                 }
-                if( m_synchronise && m_synchroniseMotor )
+                if( ! m_busy && m_synchronise && m_synchroniseMotor )
                 {
-                    double pos = m_synchroniseFunction( m_synchroniseMotor->getPosition() );
-                    goToStepNoLock( pos / m_conversionFactor );
+                    synchronise();
                 }
                 if( m_targetStep != m_currentReportedStep )
                 {
@@ -146,10 +145,32 @@ StepperMotor::~StepperMotor()
     m_thread.join();
 }
 
-void StepperMotor::goToStep( long step )
+void StepperMotor::goToStep( long step, bool noLock )
 {
-    std::lock_guard<std::mutex> mtx( m_mtx );
-    goToStepNoLock( step );
+    if( ! noLock )
+    {
+        std::lock_guard<std::mutex> mtx( m_mtx );
+    }
+    if ( m_busy )
+    {
+        // We ignore any request to go to a location if
+        // we are already stepping. The client code can
+        // issue a stop if needed before changing target
+        // step location.
+        return;
+    }
+    if ( m_currentReportedStep == step )
+    {
+        return;
+    }
+    m_direction = Direction::forward;
+    if ( step < m_currentReportedStep )
+    {
+        m_direction = Direction::reverse;
+    }
+    m_busy = true;
+    m_stop = false;
+    m_targetStep = step;
 }
 
 void StepperMotor::stop()
@@ -163,12 +184,15 @@ void StepperMotor::stop()
     m_gpio.delayMicroSeconds( 50'000 );
 }
 
-void StepperMotor::setRpm( double rpm )
+void StepperMotor::setRpm( double rpm, bool noLock )
 {
     if( rpm < 0 ) rpm = 0;
     if( rpm > m_maxRpm ) rpm = m_maxRpm;
     // NB m_delay (in µsecs) is used TWICE per thread loop
-    std::lock_guard<std::mutex> mtx( m_mtx );
+    if( ! noLock )
+    {
+        std::lock_guard<std::mutex> mtx( m_mtx );
+    }
     if ( rpm < 0.00001 )
     {
         // Arbitrarily anything lower than this
@@ -191,10 +215,10 @@ void StepperMotor::setRpm( double rpm )
     m_delay = calculateDelayValue( m_rpm );
 }
 
-void StepperMotor::setSpeed( double speed )
+void StepperMotor::setSpeed( double speed, bool noLock )
 {
     const double rpm = std::abs( speed / m_conversionFactor / m_stepsPerRevolution );
-    setRpm( rpm );
+    setRpm( rpm, noLock );
 }
 
 double StepperMotor::getRpm()
@@ -202,7 +226,7 @@ double StepperMotor::getRpm()
     return m_rpm;
 }
 
-double StepperMotor::getSpeed()
+double StepperMotor::getSpeed() const
 {
     return std::abs( m_rpm * m_stepsPerRevolution * m_conversionFactor );
 }
@@ -266,9 +290,9 @@ double StepperMotor::getPosition( long step) const
     return step * m_conversionFactor;
 }
 
-void StepperMotor::goToPosition( double mm )
+void StepperMotor::goToPosition( double mm, bool noLock )
 {
-    goToStep( mm / m_conversionFactor );
+    goToStep( mm / m_conversionFactor, noLock );
 }
 
 void StepperMotor::setPosition( double mm )
@@ -336,7 +360,7 @@ void StepperMotor::enableRamping( bool flag )
 
 void StepperMotor::synchroniseOn(
     const StepperMotor* other,
-    std::function<double(double)> func
+    std::function<double(double )> func
     )
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
@@ -350,30 +374,34 @@ void StepperMotor::synchroniseOff()
     m_synchronise = false;
 }
 
-void StepperMotor::goToStepNoLock(long step)
+void StepperMotor::synchronise()
 {
-    // This is an internal function and should only be called
-    // from within an existing locked scope
-    if ( m_busy )
+    // If we know the speed of the other motor, and can
+    // determine the delta of its position from last time,
+    // we can set our speed as a ratio of the others' speed
+    // to our distance to be moved.
+
+    // TODO: need to address speed
+
+    thread_local bool firstCall = true;
+    thread_local double otherStartPos;
+    thread_local double startPos;
+    if( firstCall )
     {
-        // We ignore any request to go to a location if
-        // we are already stepping. The client code can
-        // issue a stop if needed before changing target
-        // step location.
+        firstCall = false;
+        otherStartPos = m_synchroniseMotor->getPosition();
+        startPos = getPosition();
         return;
     }
-    if ( m_currentReportedStep == step )
-    {
-        return;
-    }
-    m_direction = Direction::forward;
-    if ( step < m_currentReportedStep )
-    {
-        m_direction = Direction::reverse;
-    }
-    m_busy = true;
-    m_stop = false;
-    m_targetStep = step;
+    double otherCurrentPos = m_synchroniseMotor->getPosition();
+    double otherPositionDelta = otherCurrentPos - otherStartPos;
+    double newPosDelta = m_synchroniseFunction( otherPositionDelta );
+    setSpeed(
+        m_synchroniseMotor->getSpeed() * ( newPosDelta / otherPositionDelta ),
+        true
+        );
+    //setSpeed( std::get<1>( t ), true );
+    goToPosition( startPos + newPosDelta, true );
 }
 
 } // end namespace

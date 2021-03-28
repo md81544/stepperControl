@@ -36,15 +36,15 @@ public:
     // Call the current step position zero
     void zeroPosition();
     // Go to a specific step
-    void goToStep( long step );
+    void goToStep( long step, bool noLock = false );
     // Set motor speed in RPM (i.e. doesn't care about gearing)
-    void setRpm( double rpm );
+    void setRpm( double rpm, bool noLock = false );
     // Set motor speed in units/min, (i.e. after gearing)
-    void setSpeed( double speed );
+    void setSpeed( double speed, bool noLock = false );
     // Get motor speed as set with setRpm()
     double getRpm();
     // Get motor speed as set with setRpm(), but in units/min
-    double getSpeed();
+    double getSpeed() const;
     // Get speed limit as set by ctor
     double getMaxRpm();
     // Get current delay value. Can't think of a
@@ -61,7 +61,7 @@ public:
     // Do conversion on a value which isn't the current step:
     double getPosition( long step ) const;
     // Go to position in UNITS not steps
-    void goToPosition( double mm );
+    void goToPosition( double mm, bool noLock = false );
     // Set current position (don't move) in UNITS not steps
     void setPosition( double mm );
     // Set backlash compensation. The number of steps the system has should be
@@ -77,12 +77,18 @@ public:
 
     double getConversionFactor() const;
     void enableRamping( bool flag );
-    // Sychronise this motor with another:
-    void synchroniseOn( const StepperMotor * const other, std::function<double(double)> func );
+    // Synchronise this motor with another. The function object will be called
+    // with the *delta* of the other motor's position since start. We return
+    // our new expected delta. Speed is handled automatically by the motor object
+    // and will track the "other" motor's speed, proportionally.
+    void synchroniseOn(
+        const StepperMotor * const other,
+        std::function<double( double stepPosDelta )> func
+        );
     void synchroniseOff();
 private:
     // Internal, only to be used from within an existing lock scope:
-    void goToStepNoLock( long step );
+    void synchronise();
     int m_motorNumber{ 0 };
     IGpio& m_gpio;
     long m_stepsPerRevolution;
@@ -110,7 +116,7 @@ private:
     double calculateDelayValue( double rpm );
     bool m_synchronise{ false };
     const StepperMotor* m_synchroniseMotor{ nullptr };
-    std::function<double(double)> m_synchroniseFunction;
+    std::function<double( double )> m_synchroniseFunction;
 };
 
 } // end namespace
