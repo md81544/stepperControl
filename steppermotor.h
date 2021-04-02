@@ -117,6 +117,10 @@ private:
     bool m_synchronise{ false };
     const StepperMotor* m_synchroniseMotor{ nullptr };
     std::function<double( double )> m_synchroniseFunction;
+
+    bool    m_syncFirstCall{ true };
+    double  m_syncOtherStartPos;
+    double  m_syncStartPos;
 };
 
 } // end namespace

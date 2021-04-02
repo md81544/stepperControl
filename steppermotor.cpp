@@ -365,6 +365,7 @@ void StepperMotor::synchroniseOn(
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
     m_synchronise = true;
+    m_syncFirstCall = true;
     m_synchroniseMotor = other;
     m_synchroniseFunction = func;
 }
@@ -381,27 +382,23 @@ void StepperMotor::synchronise()
     // we can set our speed as a ratio of the others' speed
     // to our distance to be moved.
 
-    // TODO: need to address speed
-
-    thread_local bool firstCall = true;
-    thread_local double otherStartPos;
-    thread_local double startPos;
-    if( firstCall )
+    if( m_syncFirstCall )
     {
-        firstCall = false;
-        otherStartPos = m_synchroniseMotor->getPosition();
-        startPos = getPosition();
+        m_syncFirstCall = false;
+        m_syncOtherStartPos = m_synchroniseMotor->getPosition();
+        m_syncStartPos = getPosition();
         return;
     }
     double otherCurrentPos = m_synchroniseMotor->getPosition();
-    double otherPositionDelta = otherCurrentPos - otherStartPos;
+    double otherPositionDelta = otherCurrentPos - m_syncOtherStartPos;
     double newPosDelta = m_synchroniseFunction( otherPositionDelta );
+    // We set the speed higher than it needs to be to ensure we
+    // can keep up
     setSpeed(
-        m_synchroniseMotor->getSpeed() * ( newPosDelta / otherPositionDelta ),
+        1.5 * m_synchroniseMotor->getSpeed() * ( newPosDelta / otherPositionDelta ),
         true
         );
-    //setSpeed( std::get<1>( t ), true );
-    goToPosition( startPos + newPosDelta, true );
+    goToPosition( m_syncStartPos + newPosDelta, true );
 }
 
 } // end namespace
