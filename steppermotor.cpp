@@ -365,14 +365,15 @@ void StepperMotor::synchroniseOn(
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
     m_synchronise = true;
-    m_syncFirstCall = true;
     m_synchroniseMotor = other;
     m_synchroniseFunction = func;
 }
 
 void StepperMotor::synchroniseOff()
 {
+    std::lock_guard<std::mutex> mtx( m_mtx );
     m_synchronise = false;
+    m_syncFirstCall = true;
 }
 
 void StepperMotor::synchronise()
