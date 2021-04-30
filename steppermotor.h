@@ -83,7 +83,7 @@ public:
     // and will track the "other" motor's speed, proportionally.
     void synchroniseOn(
         const StepperMotor * const other,
-        std::function<double( double stepPosDelta )> func
+        std::function<double( double posDelta, double pos )> func
         );
     void synchroniseOff();
 private:
@@ -116,7 +116,7 @@ private:
     double calculateDelayValue( double rpm );
     bool m_synchronise{ false };
     const StepperMotor* m_synchroniseMotor{ nullptr };
-    std::function<double( double )> m_synchroniseFunction;
+    std::function<double( double, double )> m_synchroniseFunction;
 
     bool    m_syncFirstCall{ true };
     double  m_syncOtherStartPos;

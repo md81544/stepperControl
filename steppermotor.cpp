@@ -360,7 +360,7 @@ void StepperMotor::enableRamping( bool flag )
 
 void StepperMotor::synchroniseOn(
     const StepperMotor* other,
-    std::function<double(double )> func
+    std::function<double(double, double )> func
     )
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
@@ -392,7 +392,7 @@ void StepperMotor::synchronise()
     }
     double otherCurrentPos = m_synchroniseMotor->getPosition();
     double otherPositionDelta = otherCurrentPos - m_syncOtherStartPos;
-    double newPosDelta = m_synchroniseFunction( otherPositionDelta );
+    double newPosDelta = m_synchroniseFunction( otherPositionDelta,  otherCurrentPos );
     // We set the speed higher than it needs to be to ensure we
     // can keep up
     setSpeed(
