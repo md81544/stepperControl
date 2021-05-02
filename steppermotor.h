@@ -83,7 +83,8 @@ public:
     // and will track the "other" motor's speed, proportionally.
     void synchroniseOn(
         const StepperMotor * const other,
-        std::function<double( double posDelta, double pos )> func
+        std::function<double( double posDelta, double pos )> func,
+        bool useZeroAsStartPos = false
         );
     void synchroniseOff();
 private:
@@ -121,6 +122,7 @@ private:
     bool    m_syncFirstCall{ true };
     double  m_syncOtherStartPos;
     double  m_syncStartPos;
+    bool    m_useZeroAsSyncStartPos{ false };
 };
 
 } // end namespace

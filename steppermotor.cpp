@@ -50,13 +50,13 @@ StepperMotor::StepperMotor(
                 {
                     break;
                 }
-                if ( m_stop )
+                if ( m_stop || m_rpm == 0.0 )
                 {
                     m_targetStep = long( m_currentReportedStep );
                     m_stop = false;
                     m_busy = false;
                 }
-                if( ! m_busy && m_synchronise && m_synchroniseMotor )
+                else if( ! m_busy && m_synchronise && m_synchroniseMotor )
                 {
                     synchronise();
                 }
@@ -360,13 +360,15 @@ void StepperMotor::enableRamping( bool flag )
 
 void StepperMotor::synchroniseOn(
     const StepperMotor* other,
-    std::function<double(double, double )> func
+    std::function<double(double, double )> func,
+    bool useZeroAsSyncStartPos // = false
     )
 {
     std::lock_guard<std::mutex> mtx( m_mtx );
     m_synchronise = true;
     m_synchroniseMotor = other;
     m_synchroniseFunction = func;
+    m_useZeroAsSyncStartPos = useZeroAsSyncStartPos;
 }
 
 void StepperMotor::synchroniseOff()
@@ -387,7 +389,14 @@ void StepperMotor::synchronise()
     {
         m_syncFirstCall = false;
         m_syncOtherStartPos = m_synchroniseMotor->getPosition();
-        m_syncStartPos = getPosition();
+        if( m_useZeroAsSyncStartPos )
+        {
+            m_syncStartPos = 0.0;
+        }
+        else
+        {
+            m_syncStartPos = getPosition();
+        }
         return;
     }
     double otherCurrentPos = m_synchroniseMotor->getPosition();
@@ -396,7 +405,7 @@ void StepperMotor::synchronise()
     // We set the speed higher than it needs to be to ensure we
     // can keep up
     setSpeed(
-        1.5 * m_synchroniseMotor->getSpeed() * ( newPosDelta / otherPositionDelta ),
+        10 * m_synchroniseMotor->getSpeed() * ( newPosDelta / otherPositionDelta ) + 10,
         true
         );
     goToPosition( m_syncStartPos + newPosDelta, true );
