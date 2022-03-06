@@ -137,7 +137,7 @@ public:
                             getTick(),
                             userData
                             );
-                        std::this_thread::sleep_for( nanoseconds( 1 ) );
+                        std::this_thread::sleep_for( microseconds( 250 ) );
                     }
                     catch( const std::exception& e )
                     {
