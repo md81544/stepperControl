@@ -5,6 +5,7 @@
 // diags messages.
 
 #include "igpio.h"
+#include "../configreader.h"
 
 #include <atomic>
 #include <chrono>
@@ -22,8 +23,9 @@ namespace mgo
 class MockGpio : public IGpio
 {
 public:
-    explicit MockGpio( bool printDiags )
-        : m_print( printDiags )
+    explicit MockGpio( bool printDiags, const IConfigReader& config )
+        : m_print( printDiags ),
+          m_config( config )
     {
         print() <<  "Initialising GPIO library\n";
     }
@@ -137,7 +139,8 @@ public:
                             getTick(),
                             userData
                             );
-                        std::this_thread::sleep_for( microseconds( 250 ) );
+                        std::this_thread::sleep_for( microseconds(
+                            m_config.readLong("MockRotaryEncoderDelayMicroseconds", 250 ) ) );
                     }
                     catch( const std::exception& e )
                     {
@@ -163,6 +166,7 @@ private:
     int m_motorCount{ 0 };
 
     bool  m_print;
+    const IConfigReader& m_config;
     std::fstream m_devNull;
     std::ostream&  print()
     {
