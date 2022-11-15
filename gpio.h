@@ -19,7 +19,7 @@ public:
     {}
 };
 
-class Gpio : public IGpio
+class Gpio final : public IGpio
 {
 public:
     Gpio();

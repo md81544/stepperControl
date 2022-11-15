@@ -20,7 +20,7 @@
 namespace mgo
 {
 
-class MockGpio : public IGpio
+class MockGpio final : public IGpio
 {
 public:
     explicit MockGpio( bool printDiags, const IConfigReader& config )
