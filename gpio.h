@@ -26,7 +26,7 @@ public:
     void setStepPin(int motor, PinState) override;
     void setReversePin(int motor, PinState) override;
     void setEnablePin(int motor, PinState) override;
-    void setRotaryEncoderCallback(
+    void setEncoderCallback(
         int pinA,
         int pinB,
         void (*callback)(int, int, uint32_t, void*),

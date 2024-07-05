@@ -84,7 +84,7 @@ public:
         m_terminate = true;
     }
 
-    void setRotaryEncoderCallback(
+    void setEncoderCallback(
         int pinA,
         int pinB,
         void (*callback)(int, int, uint32_t, void*),
