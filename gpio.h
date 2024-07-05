@@ -26,7 +26,12 @@ public:
     void setStepPin(int motor, PinState) override;
     void setReversePin(int motor, PinState) override;
     void setEnablePin(int motor, PinState) override;
-    void setEncoderCallback(
+    void setRotaryEncoderCallback(
+        int pinA,
+        int pinB,
+        void (*callback)(int, int, uint32_t, void*),
+        void* userData) override;
+    void setLinearScaleAxis1Callback(
         int pinA,
         int pinB,
         void (*callback)(int, int, uint32_t, void*),
@@ -35,6 +40,11 @@ public:
     uint32_t getTick() override;
 
 private:
+    void setCallback(
+        int pinA,
+        int pinB,
+        void (*callback)(int, int, uint32_t, void*),
+        void* userData);
     std::vector<int> m_stepPins;
     std::vector<int> m_reversePins;
     std::vector<int> m_enablePins;

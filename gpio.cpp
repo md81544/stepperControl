@@ -45,7 +45,26 @@ void Gpio::setEnablePin(int motor, PinState state)
     gpioWrite(m_enablePins.at(motor), state == PinState::high ? 1 : 0);
 }
 
-void Gpio::setEncoderCallback(
+void Gpio::setRotaryEncoderCallback(
+    int pinA,
+    int pinB,
+    void (*callback)(int, int, uint32_t, void*),
+    void* user)
+{
+{
+    setCallback(pinA, pinB, callback, user);
+}
+
+void Gpio::setLinearScaleAxis1Callback(
+    int pinA,
+    int pinB,
+    void (*callback)(int, int, uint32_t, void*),
+    void* user)
+{
+    setCallback(pinA, pinB, callback, user);
+}
+
+void Gpio::setCallback(
     int pinA,
     int pinB,
     void (*callback)(int, int, uint32_t, void*),

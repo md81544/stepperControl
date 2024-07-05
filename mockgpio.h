@@ -31,9 +31,13 @@ public:
     {
         print() << "Terminating GPIO library\n";
         m_terminate = true;
-        if (m_callbacker.joinable()) {
-            print() << "Waiting for callbacker thread to terminate\n";
-            m_callbacker.join();
+        if (m_rotaryEncoderCallbackerThread.joinable()) {
+            print() << "Waiting for rotary encoder callbacker thread to terminate\n";
+            m_rotaryEncoderCallbackerThread.join();
+        }
+        if (m_linearScaleAxis1CallbackerThread.joinable()) {
+            print() << "Waiting for linear scale callbacker thread to terminate\n";
+            m_linearScaleAxis1CallbackerThread.join();
         }
     }
 
@@ -84,7 +88,7 @@ public:
         m_terminate = true;
     }
 
-    void setEncoderCallback(
+    void setRotaryEncoderCallback(
         int pinA,
         int pinB,
         void (*callback)(int, int, uint32_t, void*),
@@ -117,9 +121,47 @@ public:
                     break;
                 }
             }
-            print() << "Callbacker thread ended\n";
+            print() << "Rotary encoder callbacker thread ended\n";
         });
-        m_callbacker.swap(t);
+        m_rotaryEncoderCallbackerThread.swap(t);
+    }
+
+    void setLinearScaleAxis1Callback(
+        int pinA,
+        int pinB,
+        void (*callback)(int, int, uint32_t, void*),
+        void* userData) override
+    {
+        auto t = std::thread([=]() {
+            using namespace std::chrono;
+            for (;;) {
+                try {
+                    if (m_terminate) {
+                        break;
+                    }
+                    callback(pinA, 1, getTick(), userData);
+                    if (m_terminate) {
+                        break;
+                    }
+                    callback(pinB, 1, getTick(), userData);
+                    if (m_terminate) {
+                        break;
+                    }
+                    callback(pinA, 0, getTick(), userData);
+                    if (m_terminate) {
+                        break;
+                    }
+                    callback(pinB, 0, getTick(), userData);
+                    std::this_thread::sleep_for(milliseconds(
+                        m_config.readLong("MockLinearScaleAxis1DelayMilliseconds", 250)));
+                } catch (const std::exception& e) {
+                    print() << e.what() << std::endl;
+                    break;
+                }
+            }
+            print() << "Linear scale axis 1 callbacker thread ended\n";
+        });
+        m_linearScaleAxis1CallbackerThread.swap(t);
     }
 
     void delayMicroSeconds(long usecs) override
@@ -130,7 +172,8 @@ public:
 
 private:
     std::atomic<bool> m_terminate { false };
-    std::thread m_callbacker;
+    std::thread m_rotaryEncoderCallbackerThread;
+    std::thread m_linearScaleAxis1CallbackerThread;
 
     int m_motorCount { 0 };
 

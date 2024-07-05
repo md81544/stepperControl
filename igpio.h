@@ -23,8 +23,13 @@ public:
     virtual void setStepPin(int motor, PinState) = 0;
     virtual void setReversePin(int motor, PinState) = 0;
     virtual void setEnablePin(int motor, PinState) = 0;
-    // Support for linear or rotary encoders:
-    virtual void setEncoderCallback(
+    virtual void setRotaryEncoderCallback(
+        int pinA,
+        int pinB,
+        void (*callback)(int, int, uint32_t, void*),
+        void* userData)
+        = 0;
+    virtual void setLinearScaleAxis1Callback(
         int pinA,
         int pinB,
         void (*callback)(int, int, uint32_t, void*),
