@@ -88,6 +88,25 @@ public:
         m_terminate = true;
     }
 
+    void scaleGoToPosition(int32_t step) override
+    {
+        m_targetPosition = step;
+    }
+
+    void scaleSetSpeedStepsPerSec(double speed) override
+    {
+        // Note the final multiplication by a "fudge factor" to account for delays
+        // introduced by the rest of the code. As this is for testing/faking it's not
+        // really important, but it just brings the results from the mock linear scale
+        // closer to the dead reckoning values.
+        m_microsecsPerStep = ((1.0 / speed) * 1'000'000) * 0.855;
+    }
+
+    void scaleStop() override
+    {
+        m_targetPosition = m_stepCount;
+    }
+
     void setRotaryEncoderCallback(
         int pinA,
         int pinB,
@@ -135,25 +154,81 @@ public:
         auto t = std::thread([=]() {
             using namespace std::chrono;
             for (;;) {
+                if (m_terminate) {
+                    break;
+                }
+                // Each pin change (which doesn't replicate the previous state) counts as a step.
+                // We keep track of steps internally in the mock (the real object leaves its owner
+                // to do that) so we can make the mock 'move' programmatically.
                 try {
-                    if (m_terminate) {
-                        break;
+                    if (m_stepCount < m_targetPosition) {
+                        callback(pinA, 1, getTick(), userData);
+                        if (++m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinB, 1, getTick(), userData);
+                        if (++m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinA, 0, getTick(), userData);
+                        if (++m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinB, 0, getTick(), userData);
+                        if (++m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
                     }
-                    callback(pinA, 1, getTick(), userData);
-                    if (m_terminate) {
-                        break;
+                    if (m_stepCount > m_targetPosition) {
+                        callback(pinB, 0, getTick(), userData);
+                        if (--m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinA, 0, getTick(), userData);
+                        if (--m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinB, 1, getTick(), userData);
+                        if (--m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                        callback(pinA, 1, getTick(), userData);
+                        if (--m_stepCount == m_targetPosition) {
+                            continue;
+                        }
+                        if (m_terminate) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
                     }
-                    callback(pinB, 1, getTick(), userData);
-                    if (m_terminate) {
-                        break;
-                    }
-                    callback(pinA, 0, getTick(), userData);
-                    if (m_terminate) {
-                        break;
-                    }
-                    callback(pinB, 0, getTick(), userData);
-                    std::this_thread::sleep_for(milliseconds(
-                        m_config.readLong("MockLinearScaleAxis1DelayMilliseconds", 250)));
                 } catch (const std::exception& e) {
                     print() << e.what() << std::endl;
                     break;
@@ -172,8 +247,13 @@ public:
 
 private:
     std::atomic<bool> m_terminate { false };
+    std::atomic<double> m_targetPosition { 0.0 };
+    std::atomic<double> m_microsecsPerStep { 0.01 };
     std::thread m_rotaryEncoderCallbackerThread;
     std::thread m_linearScaleAxis1CallbackerThread;
+    int32_t m_stepCount {
+        0
+    }; // We keep count of steps in this mock to allow us to move to a specific location for testing
 
     int m_motorCount { 0 };
 
