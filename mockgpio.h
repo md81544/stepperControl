@@ -88,9 +88,9 @@ public:
         m_terminate = true;
     }
 
-    void scaleGoToPosition(int32_t step) override
+    void scaleGoToPositionMm(double mm) override
     {
-        m_targetPosition = step;
+        m_targetPosition = mm * m_config.readLong("LinearScaleAxis1StepsPerMM", 200);
     }
 
     void scaleSetSpeedStepsPerSec(double speed) override

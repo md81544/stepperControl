@@ -40,7 +40,7 @@ public:
     virtual uint32_t getTick() = 0;
     // These functions are for TESTING/FAKE only (to make the mocked linear scale appear to be
     // working) and should be a no-op on non-fake IGpio-derived classes:
-    virtual void scaleGoToPosition(int32_t step) = 0;
+    virtual void scaleGoToPositionMm(double mm) = 0;
     virtual void scaleSetSpeedStepsPerSec(double speed) = 0;
     virtual void scaleStop() = 0;
 };

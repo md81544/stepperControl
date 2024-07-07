@@ -15,11 +15,16 @@ StepperMotor::StepperMotor(
     int enablePin,
     long stepsPerRevolution,
     double conversionFactor,
-    double maxRpm)
+    double maxRpm,
+    bool usingMockLinearScale, /* = true */
+    uint32_t mockLinearScaleStepsPerMm /* = 200 */)
     : m_gpio(gpio)
     , m_stepsPerRevolution(stepsPerRevolution)
     , m_conversionFactor(conversionFactor)
     , m_maxRpm(maxRpm)
+    , m_usingMockLinearScale(usingMockLinearScale)
+    , m_mockLinearScaleStepsPerMm(mockLinearScaleStepsPerMm)
+
 {
     m_motorNumber = m_gpio.addMotor(stepPin, reversePin, enablePin);
     // Ensure we start off with the right direction
@@ -141,6 +146,15 @@ void StepperMotor::goToStep(long step, bool noLock)
     m_busy = true;
     m_stop = false;
     m_targetStep = step;
+    if (m_usingMockLinearScale) {
+#ifdef FAKE
+        m_gpio.scaleGoToPositionMm(step * m_conversionFactor);
+        double motorSpeedMmPerSec = getSpeed() / 60.0;
+        // Say we are moving at 0.5 mm/sec then steps per sec should be 200 * 0.5
+        // So motorSpeed * stepsPerMm.
+        m_gpio.scaleSetSpeedStepsPerSec(motorSpeedMmPerSec * m_mockLinearScaleStepsPerMm);
+#endif
+    }
 }
 
 void StepperMotor::stop()
@@ -183,6 +197,10 @@ void StepperMotor::setRpm(double rpm, bool noLock)
     }
     m_rpm = rpm;
     m_delay = calculateDelayValue(m_rpm);
+#ifdef FAKE
+    double motorSpeedMmPerSec = getSpeed() / 60.0;
+    m_gpio.scaleSetSpeedStepsPerSec(motorSpeedMmPerSec * m_mockLinearScaleStepsPerMm);
+#endif
 }
 
 void StepperMotor::setSpeed(double speed, bool noLock)

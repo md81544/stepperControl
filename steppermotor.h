@@ -23,7 +23,9 @@ public:
         int enablePin,
         long stepsPerRevolution,
         double conversionFactor,
-        double maxRpm);
+        double maxRpm,
+        bool usingMockLinearScale = false,
+        uint32_t mockLinearScaleStepsPerMm = 200);
     ~StepperMotor();
     bool isRunning() const;
     Direction getDirection() const;
@@ -119,6 +121,8 @@ private:
     double m_syncOtherStartPos;
     double m_syncStartPos;
     bool m_useZeroAsSyncStartPos { false };
+    bool m_usingMockLinearScale { false };
+    uint32_t m_mockLinearScaleStepsPerMm { 200 };
 };
 
 } // end namespace

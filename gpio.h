@@ -40,7 +40,7 @@ public:
     uint32_t getTick() override;
 
 private:
-    void scaleGoToPosition(int32_t step) = delete;
+    void scaleGoToPositionMm(double mm) = delete;
     void scaleSetSpeedStepsPerSec(double speed) = delete;
     void scaleStop() = delete;
     void
