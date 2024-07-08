@@ -99,7 +99,8 @@ public:
         // introduced by the rest of the code. As this is for testing/faking it's not
         // really important, but it just brings the results from the mock linear scale
         // closer to the dead reckoning values.
-        m_microsecsPerStep = ((1.0 / speed) * 1'000'000) * 0.855;
+        double nonZeroSpeed = speed > 0.0 ? speed : 10.0;
+        m_microsecsPerStep = ((1.0 / nonZeroSpeed) * 1'000'000) * 0.855;
     }
 
     void scaleStop() override
@@ -154,13 +155,13 @@ public:
         auto t = std::thread([=]() {
             using namespace std::chrono;
             for (;;) {
-                if (m_terminate) {
-                    break;
-                }
-                // Each pin change (which doesn't replicate the previous state) counts as a step.
-                // We keep track of steps internally in the mock (the real object leaves its owner
-                // to do that) so we can make the mock 'move' programmatically.
                 try {
+                    if (m_terminate) {
+                        break;
+                    }
+                    // Each pin change (which doesn't replicate the previous state) counts as a
+                    // step. We keep track of steps internally in the mock (the real object leaves
+                    // its owner to do that) so we can make the mock 'move' programmatically.
                     if (m_stepCount < m_targetPosition) {
                         callback(pinA, 1, getTick(), userData);
                         if (++m_stepCount == m_targetPosition) {
