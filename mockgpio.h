@@ -194,8 +194,7 @@ public:
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
-                    }
-                    if (m_stepCount > m_targetPosition) {
+                    } else if (m_stepCount > m_targetPosition) {
                         callback(pinB, 0, getTick(), userData);
                         if (--m_stepCount == m_targetPosition) {
                             continue;
@@ -228,6 +227,12 @@ public:
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
+                    } else {
+                        // Not moving so small-ish sleep just to avoid spinning
+                        std::this_thread::sleep_for(milliseconds(50));
+                        if (m_terminate) {
+                            break;
+                        }
                     }
                 } catch (const std::exception& e) {
                     print() << e.what() << std::endl;
