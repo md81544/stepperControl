@@ -51,7 +51,6 @@ void Gpio::setRotaryEncoderCallback(
     void (*callback)(int, int, uint32_t, void*),
     void* user)
 {
-{
     setCallback(pinA, pinB, callback, user);
 }
 

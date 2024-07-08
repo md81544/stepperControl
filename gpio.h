@@ -40,9 +40,9 @@ public:
     uint32_t getTick() override;
 
 private:
-    void scaleGoToPositionMm(double mm) = delete;
-    void scaleSetSpeedStepsPerSec(double speed) = delete;
-    void scaleStop() = delete;
+    void scaleGoToPositionMm(double) override {};
+    void scaleSetSpeedStepsPerSec(double) override {};
+    void scaleStop() override {};
     void
     setCallback(int pinA, int pinB, void (*callback)(int, int, uint32_t, void*), void* userData);
     std::vector<int> m_stepPins;
