@@ -360,7 +360,7 @@ void StepperMotor::synchronise()
 {
     // If we know the speed of the other motor, and can
     // determine the delta of its position from last time,
-    // we can set our speed as a ratio of the others' speed
+    // we can set our speed as a ratio of the other's speed
     // to our distance to be moved.
 
     if (m_syncFirstCall) {
