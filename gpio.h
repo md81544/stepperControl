@@ -40,6 +40,8 @@ public:
     uint32_t getTick() override;
 
 private:
+    // The following scale* functions are deliberately no-op as they are only used in the
+    // mock gpio class to simulate the scale moving.
     void scaleGoToPositionMm(double) override {};
     void scaleSetSpeedStepsPerSec(double) override {};
     void scaleStop() override {};
