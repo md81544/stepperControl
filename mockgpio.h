@@ -114,7 +114,7 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
-        auto t = std::thread([=]() {
+        auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
                 try {
@@ -152,7 +152,7 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
-        auto t = std::thread([=]() {
+        auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
                 try {
