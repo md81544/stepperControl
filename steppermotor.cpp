@@ -376,9 +376,16 @@ void StepperMotor::synchronise()
     double otherCurrentPos = m_synchroniseMotor->getPosition();
     double otherPositionDelta = otherCurrentPos - m_syncOtherStartPos;
     double newPosDelta = m_synchroniseFunction(otherPositionDelta, otherCurrentPos);
-    // We set the speed higher than it needs to be to ensure we
-    // can keep up
-    setSpeed(10 * m_synchroniseMotor->getSpeed() * (newPosDelta / otherPositionDelta) + 10, true);
+    // We set the speed higher than it needs to be to ensure
+    // that this motor can keep up with the synced motor
+    double otherSpeed = 10 * m_synchroniseMotor->getSpeed();
+    double deltaRatio = newPosDelta;
+    if (otherPositionDelta != 0.0) {
+        // otherPositionDelta shouldn't ever be zero, but we check
+        // nevertheless to avoid divide by zero
+        deltaRatio /= otherPositionDelta;
+    }
+    setSpeed(otherSpeed * std::abs(deltaRatio) + 10.0, true);
     goToPosition(m_syncStartPos + newPosDelta, true);
 }
 
