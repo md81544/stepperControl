@@ -148,6 +148,7 @@ void StepperMotor::goToStep(long step, bool noLock)
     m_targetStep = step;
     if (m_usingMockLinearScale) {
 #ifdef FAKE
+        // This is solely to drive the mock linear scale in step with this motor
         m_gpio.scaleGoToPositionMm(step * m_conversionFactor);
         double motorSpeedMmPerSec = getSpeed() / 60.0;
         // Say we are moving at 0.5 mm/sec then steps per sec should be 200 * 0.5
