@@ -114,6 +114,13 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
+        int pin1 = pinB;
+        int pin2 = pinA;
+        if (m_config.readBool("MockRotaryDirectionNormal", true) == false) {
+            pin1 = pinA;
+            pin2 = pinB;
+        }
+        const long delayMicroseconds = m_config.readLong("MockRotaryEncoderDelayMicroseconds", 250);
         auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
@@ -121,21 +128,20 @@ public:
                     if (m_terminate) {
                         break;
                     }
-                    callback(pinA, 1, getTick(), userData);
+                    callback(pin1, 1, getTick(), userData);
                     if (m_terminate) {
                         break;
                     }
-                    callback(pinB, 1, getTick(), userData);
+                    callback(pin2, 1, getTick(), userData);
                     if (m_terminate) {
                         break;
                     }
-                    callback(pinA, 0, getTick(), userData);
+                    callback(pin1, 0, getTick(), userData);
                     if (m_terminate) {
                         break;
                     }
-                    callback(pinB, 0, getTick(), userData);
-                    std::this_thread::sleep_for(
-                        microseconds(m_config.readLong("MockRotaryEncoderDelayMicroseconds", 250)));
+                    callback(pin2, 0, getTick(), userData);
+                    std::this_thread::sleep_for(microseconds(delayMicroseconds));
                 } catch (const std::exception& e) {
                     print() << e.what() << std::endl;
                     break;
