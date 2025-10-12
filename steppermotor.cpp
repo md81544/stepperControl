@@ -16,16 +16,24 @@ StepperMotor::StepperMotor(
     long stepsPerRevolution,
     double conversionFactor,
     double maxRpm,
+    double rampingSpeed,
     bool usingMockLinearScale, /* = true */
     uint32_t mockLinearScaleStepsPerMm /* = 200 */)
     : m_gpio(gpio)
     , m_stepsPerRevolution(stepsPerRevolution)
     , m_conversionFactor(conversionFactor)
     , m_maxRpm(maxRpm)
+    , m_rampingSpeed(rampingSpeed)
     , m_usingMockLinearScale(usingMockLinearScale)
     , m_mockLinearScaleStepsPerMm(mockLinearScaleStepsPerMm)
 
 {
+    if (m_rampingSpeed < 0.0) {
+        m_rampingSpeed = 0.0;
+    }
+    if (m_rampingSpeed > 0.1) {
+        m_rampingSpeed = 0.1;
+    }
     m_motorNumber = m_gpio.addMotor(stepPin, reversePin, enablePin);
     // Ensure we start off with the right direction
     m_gpio.setReversePin(
@@ -93,7 +101,7 @@ StepperMotor::StepperMotor(
             } // scope for lock_guard
 
             if (m_busy && m_useRamping && m_rampedRpm < m_rpm) {
-                m_rampedRpm += 0.1;
+                m_rampedRpm += m_rampingSpeed;
                 if (m_rampedRpm > m_rpm) {
                     m_rampedRpm = m_rpm;
                 }

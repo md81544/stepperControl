@@ -24,6 +24,7 @@ public:
         long stepsPerRevolution,
         double conversionFactor,
         double maxRpm,
+        double rampingSpeed = 0.1, // 0.1=fastest, 0.001=slowest, 0.0=off
         bool usingMockLinearScale = false,
         uint32_t mockLinearScaleStepsPerMm = 200);
     ~StepperMotor();
@@ -112,6 +113,9 @@ private:
     unsigned int m_backlashSize { 0 };
     unsigned int m_backlashPosition { 0 };
     bool m_useRamping { true };
+    // Ramping speed is an arbitrary value which affects the speed of ramping
+    // (if enabled).
+    double m_rampingSpeed { 0.1 };
     double calculateDelayValue(double rpm);
     bool m_synchronise { false };
     const StepperMotor* m_synchroniseMotor { nullptr };
