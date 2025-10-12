@@ -113,8 +113,6 @@ private:
     unsigned int m_backlashSize { 0 };
     unsigned int m_backlashPosition { 0 };
     bool m_useRamping { true };
-    // Ramping speed is an arbitrary value which affects the speed of ramping
-    // (if enabled).
     double m_rampingSpeed { 0.1 };
     double calculateDelayValue(double rpm);
     bool m_synchronise { false };

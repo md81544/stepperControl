@@ -23,7 +23,7 @@ StepperMotor::StepperMotor(
     , m_stepsPerRevolution(stepsPerRevolution)
     , m_conversionFactor(conversionFactor)
     , m_maxRpm(maxRpm)
-    , m_rampingSpeed(rampingSpeed)
+    , m_rampingSpeed(rampingSpeed / 1000.0)
     , m_usingMockLinearScale(usingMockLinearScale)
     , m_mockLinearScaleStepsPerMm(mockLinearScaleStepsPerMm)
 
@@ -33,6 +33,9 @@ StepperMotor::StepperMotor(
     }
     if (m_rampingSpeed > 0.1) {
         m_rampingSpeed = 0.1;
+    }
+    if (m_rampingSpeed == 0.0) {
+        m_useRamping = false;
     }
     m_motorNumber = m_gpio.addMotor(stepPin, reversePin, enablePin);
     // Ensure we start off with the right direction
@@ -342,7 +345,9 @@ double StepperMotor::calculateDelayValue(double rpm)
 void StepperMotor::enableRamping(bool flag)
 {
     std::lock_guard<std::mutex> mtx(m_mtx);
-    m_useRamping = flag;
+    if (m_rampingSpeed != 0.0) {
+        m_useRamping = flag;
+    }
 }
 
 void StepperMotor::synchroniseOn(
