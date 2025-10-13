@@ -114,11 +114,11 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
-        int pin1 = pinB;
-        int pin2 = pinA;
-        if (m_config.readBool("MockRotaryDirectionNormal", true) == false) {
-            pin1 = pinA;
-            pin2 = pinB;
+        int pin1 = pinA;
+        int pin2 = pinB;
+        if (m_config.readBool("MockRotaryDirectionNormal", false) == true) {
+            pin1 = pinB;
+            pin2 = pinA;
         }
         const long delayMicroseconds = m_config.readLong("MockRotaryEncoderDelayMicroseconds", 250);
         auto t = std::thread([=, this]() {
