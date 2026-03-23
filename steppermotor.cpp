@@ -126,7 +126,18 @@ StepperMotor::StepperMotor(
     // Set the thread's scheduling to be real-time; cannot do this portably:
     sched_param schedParams;
     schedParams.sched_priority = ::sched_get_priority_max(SCHED_RR);
-    ::pthread_setschedparam(m_thread.native_handle(), SCHED_RR, &schedParams);
+    int rc = ::pthread_setschedparam(m_thread.native_handle(), SCHED_RR, &schedParams);
+    if (rc == 0) {
+        m_isRealTimeScheduled = true;
+    }
+    // Check we have set priority OK
+    int policy;
+    sched_param actual {};
+    ::pthread_getschedparam(m_thread.native_handle(), &policy, &actual);
+    if (actual.sched_priority != 99) {
+        m_isRealTimeScheduled = false;
+    }
+
 }
 
 StepperMotor::~StepperMotor()
@@ -368,6 +379,11 @@ void StepperMotor::synchroniseOff()
     std::lock_guard<std::mutex> mtx(m_mtx);
     m_synchronise = false;
     m_syncFirstCall = true;
+}
+
+bool StepperMotor::isRunningRealTimeScheduled()
+{
+    return m_isRealTimeScheduled;
 }
 
 void StepperMotor::synchronise()

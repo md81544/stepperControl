@@ -85,6 +85,12 @@ public:
         std::function<double(double posDelta, double pos)> func,
         bool useZeroAsStartPos = false);
     void synchroniseOff();
+    // A return of false here indicates an error setting thread
+    // scheduling (probably the binary wasn't run as root). We shouldn't
+    // get here on production hardware as the pigpio *requires* root.
+    // For dev hardware with mocked-out pigpio, it will be sufficient
+    // to set the capabilities of the binary with "sudo setcap cap_sys_nice+ep build/lc"
+    bool isRunningRealTimeScheduled();
 
 private:
     // Internal, only to be used from within an existing lock scope:
@@ -125,6 +131,8 @@ private:
     bool m_useZeroAsSyncStartPos { false };
     bool m_usingMockLinearScale { false };
     uint32_t m_mockLinearScaleStepsPerMm { 200 };
+
+    bool m_isRealTimeScheduled { false };
 };
 
 } // end namespace
