@@ -130,7 +130,7 @@ private:
     double m_syncStartPos;
     bool m_useZeroAsSyncStartPos { false };
     bool m_usingMockLinearScale { false };
-    uint32_t m_mockLinearScaleStepsPerMm { 200 };
+    [[maybe_unused]] uint32_t m_mockLinearScaleStepsPerMm { 200 };
 
     bool m_isRealTimeScheduled { false };
 };
