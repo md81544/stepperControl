@@ -10,9 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
-#include <functional>
 #include <iostream>
-#include <sstream>
 #include <thread>
 #include <unistd.h>
 
@@ -27,7 +25,7 @@ public:
         print() << "Initialising GPIO library\n";
     }
 
-    virtual ~MockGpio()
+    ~MockGpio()
     {
         print() << "Terminating GPIO library\n";
         m_terminate = true;
