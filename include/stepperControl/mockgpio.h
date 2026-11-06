@@ -4,7 +4,6 @@
 // but mocked. Includes ability to write
 // diags messages.
 
-#include "../configreader.h"
 #include "igpio.h"
 
 #include <atomic>
@@ -16,11 +15,22 @@
 
 namespace mgo {
 
+// Settings for the mock's simulated hardware. The defaults are suitable
+// for most testing.
+struct MockGpioOptions {
+    // Swap the mock rotary encoder's pins, i.e. reverse its direction
+    bool rotaryDirectionNormal { false };
+    // Delay between each simulated rotary encoder pulse
+    long rotaryEncoderDelayMicroseconds { 250 };
+    // Resolution of the simulated linear scale
+    long linearScaleAxis1StepsPerMm { 200 };
+};
+
 class MockGpio final : public IGpio {
 public:
-    explicit MockGpio(bool printDiags, const IConfigReader& config)
+    explicit MockGpio(bool printDiags, MockGpioOptions options = {})
         : m_print(printDiags)
-        , m_config(config)
+        , m_options(options)
     {
         print() << "Initialising GPIO library\n";
     }
@@ -101,7 +111,7 @@ public:
 
     void scaleGoToPositionMm(double mm) override
     {
-        m_targetPosition = mm * m_config.readLong("LinearScaleAxis1StepsPerMM", 200);
+        m_targetPosition = mm * m_options.linearScaleAxis1StepsPerMm;
     }
 
     void scaleSetSpeedStepsPerSec(double speed) override
@@ -129,11 +139,11 @@ public:
         clearRotaryEncoderCallback();
         int pin1 = pinA;
         int pin2 = pinB;
-        if (m_config.readBool("MockRotaryDirectionNormal", false) == true) {
+        if (m_options.rotaryDirectionNormal) {
             pin1 = pinB;
             pin2 = pinA;
         }
-        const long delayMicroseconds = m_config.readLong("MockRotaryEncoderDelayMicroseconds", 250);
+        const long delayMicroseconds = m_options.rotaryEncoderDelayMicroseconds;
         auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
@@ -286,7 +296,7 @@ private:
     int m_motorCount { 0 };
 
     bool m_print;
-    const IConfigReader& m_config;
+    MockGpioOptions m_options;
     std::fstream m_devNull;
     std::ostream& print()
     {

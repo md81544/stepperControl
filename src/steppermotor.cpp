@@ -1,6 +1,6 @@
-#include "steppermotor.h"
+#include "stepperControl/steppermotor.h"
 
-#include "igpio.h"
+#include "stepperControl/igpio.h"
 
 #include <cmath>
 #include <cstdint>
@@ -184,14 +184,13 @@ void StepperMotor::goToStep(long step, bool noLock)
     m_stop = false;
     m_targetStep = step;
     if (m_usingMockLinearScale) {
-#ifdef FAKE
         // This is solely to drive the mock linear scale in step with this motor
+        // (the scale* functions are no-ops on real hardware)
         m_gpio.scaleGoToPositionMm(step * m_conversionFactor);
         double motorSpeedMmPerSec = getSpeed() / 60.0;
         // Say we are moving at 0.5 mm/sec then steps per sec should be 200 * 0.5
         // So motorSpeed * stepsPerMm.
         m_gpio.scaleSetSpeedStepsPerSec(motorSpeedMmPerSec * m_mockLinearScaleStepsPerMm);
-#endif
     }
 }
 
@@ -237,10 +236,11 @@ void StepperMotor::setRpm(double rpm, bool noLock)
     }
     m_rpm = rpm;
     m_delay = calculateDelayValue(m_rpm);
-#ifdef FAKE
-    double motorSpeedMmPerSec = getSpeed() / 60.0;
-    m_gpio.scaleSetSpeedStepsPerSec(motorSpeedMmPerSec * m_mockLinearScaleStepsPerMm);
-#endif
+    if (m_usingMockLinearScale) {
+        // Keep the mock linear scale's speed in step with this motor
+        const double motorSpeedMmPerSec = getSpeed() / 60.0;
+        m_gpio.scaleSetSpeedStepsPerSec(motorSpeedMmPerSec * m_mockLinearScaleStepsPerMm);
+    }
 }
 
 void StepperMotor::setSpeed(double speed, bool noLock)
