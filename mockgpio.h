@@ -28,15 +28,28 @@ public:
     ~MockGpio()
     {
         print() << "Terminating GPIO library\n";
-        m_terminate = true;
+        clearRotaryEncoderCallback();
+        clearLinearScaleAxis1Callback();
+    }
+
+    void clearRotaryEncoderCallback() override
+    {
+        m_terminateRotary = true;
         if (m_rotaryEncoderCallbackerThread.joinable()) {
             print() << "Waiting for rotary encoder callbacker thread to terminate\n";
             m_rotaryEncoderCallbackerThread.join();
         }
+        m_terminateRotary = false;
+    }
+
+    void clearLinearScaleAxis1Callback() override
+    {
+        m_terminateScale = true;
         if (m_linearScaleAxis1CallbackerThread.joinable()) {
             print() << "Waiting for linear scale callbacker thread to terminate\n";
             m_linearScaleAxis1CallbackerThread.join();
         }
+        m_terminateScale = false;
     }
 
     int addMotor(int, int, int) override
@@ -83,7 +96,7 @@ public:
         // class-specific function to allow us to stop the
         // callbacker manually
         print() << "Stopping callbacker\n";
-        m_terminate = true;
+        m_terminateRotary = true;
     }
 
     void scaleGoToPositionMm(double mm) override
@@ -112,6 +125,8 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
+        // Replacing a running thread would otherwise std::terminate()
+        clearRotaryEncoderCallback();
         int pin1 = pinA;
         int pin2 = pinB;
         if (m_config.readBool("MockRotaryDirectionNormal", false) == true) {
@@ -123,19 +138,19 @@ public:
             using namespace std::chrono;
             for (;;) {
                 try {
-                    if (m_terminate) {
+                    if (m_terminateRotary) {
                         break;
                     }
                     callback(pin1, 1, getTick(), userData);
-                    if (m_terminate) {
+                    if (m_terminateRotary) {
                         break;
                     }
                     callback(pin2, 1, getTick(), userData);
-                    if (m_terminate) {
+                    if (m_terminateRotary) {
                         break;
                     }
                     callback(pin1, 0, getTick(), userData);
-                    if (m_terminate) {
+                    if (m_terminateRotary) {
                         break;
                     }
                     callback(pin2, 0, getTick(), userData);
@@ -156,11 +171,13 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override
     {
+        // Replacing a running thread would otherwise std::terminate()
+        clearLinearScaleAxis1Callback();
         auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
                 try {
-                    if (m_terminate) {
+                    if (m_terminateScale) {
                         break;
                     }
                     // Each pin change (which doesn't replicate the previous state) counts as a
@@ -171,7 +188,7 @@ public:
                         if (++m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -179,7 +196,7 @@ public:
                         if (++m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -187,7 +204,7 @@ public:
                         if (++m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -195,7 +212,7 @@ public:
                         if (++m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -204,7 +221,7 @@ public:
                         if (--m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -212,7 +229,7 @@ public:
                         if (--m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -220,7 +237,7 @@ public:
                         if (--m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
@@ -228,14 +245,14 @@ public:
                         if (--m_stepCount == m_targetPosition) {
                             continue;
                         }
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                         std::this_thread::sleep_for(microseconds(m_microsecsPerStep));
                     } else {
                         // Not moving so small-ish sleep just to avoid spinning
                         std::this_thread::sleep_for(milliseconds(50));
-                        if (m_terminate) {
+                        if (m_terminateScale) {
                             break;
                         }
                     }
@@ -256,7 +273,8 @@ public:
     }
 
 private:
-    std::atomic<bool> m_terminate { false };
+    std::atomic<bool> m_terminateRotary { false };
+    std::atomic<bool> m_terminateScale { false };
     std::atomic<double> m_targetPosition { 0.0 };
     std::atomic<double> m_microsecsPerStep { 0.01 };
     std::thread m_rotaryEncoderCallbackerThread;

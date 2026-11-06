@@ -8,6 +8,13 @@
 
 namespace mgo {
 
+namespace {
+// Stepper drivers need the direction pin to be stable for a short time before
+// the step pulse's rising edge (e.g. 5µs for a DM542). Without this, the first
+// step after a reversal can be taken in the old direction.
+constexpr uint32_t DIRECTION_SETUP_MICROSECONDS = 5;
+}
+
 StepperMotor::StepperMotor(
     IGpio& gpio,
     int stepPin,
@@ -72,6 +79,9 @@ StepperMotor::StepperMotor(
                             m_motorNumber,
                             m_direction == Direction::forward ? PinState::low : PinState::high);
                         oldDirection = m_direction;
+                        const uint32_t dirTick = m_gpio.getTick();
+                        while (m_gpio.getTick() - dirTick < DIRECTION_SETUP_MICROSECONDS)
+                            ;
                     }
                     // Do step pulse
                     m_gpio.setStepPin(m_motorNumber, PinState::high);
@@ -100,16 +110,17 @@ StepperMotor::StepperMotor(
                         m_busy = false;
                     }
                 }
+                // Ramping must happen inside the lock: it reads m_rpm and
+                // writes m_delay, both of which setRpm() also writes.
+                if (m_busy && m_useRamping && m_rampedRpm < m_rpm) {
+                    m_rampedRpm += m_rampingSpeed;
+                    if (m_rampedRpm > m_rpm) {
+                        m_rampedRpm = m_rpm.load();
+                    }
+                    m_delay = calculateDelayValue(m_rampedRpm);
+                }
                 delay = m_delay; // remember delay value while in mtx scope
             } // scope for lock_guard
-
-            if (m_busy && m_useRamping && m_rampedRpm < m_rpm) {
-                m_rampedRpm += m_rampingSpeed;
-                if (m_rampedRpm > m_rpm) {
-                    m_rampedRpm = m_rpm;
-                }
-                m_delay = calculateDelayValue(m_rampedRpm);
-            }
 
             // We always perform the second delay regardless of
             // whether we're stepping, to give the main thread a
@@ -148,8 +159,12 @@ StepperMotor::~StepperMotor()
 
 void StepperMotor::goToStep(long step, bool noLock)
 {
+    // noLock is only true when called from within the motor thread, which
+    // already holds m_mtx. (NB a lock_guard inside an "if" block would be
+    // released at the end of that block, so we use a deferred unique_lock.)
+    std::unique_lock<std::mutex> lock(m_mtx, std::defer_lock);
     if (!noLock) {
-        std::lock_guard<std::mutex> mtx(m_mtx);
+        lock.lock();
     }
     if (m_busy) {
         // We ignore any request to go to a location if
@@ -200,8 +215,10 @@ void StepperMotor::setRpm(double rpm, bool noLock)
         rpm = m_maxRpm;
     }
     // NB m_delay (in µsecs) is used TWICE per thread loop
+    // See goToStep() regarding noLock
+    std::unique_lock<std::mutex> lock(m_mtx, std::defer_lock);
     if (!noLock) {
-        std::lock_guard<std::mutex> mtx(m_mtx);
+        lock.lock();
     }
     if (rpm < 0.00001) {
         // Arbitrarily anything lower than this
@@ -302,14 +319,14 @@ double StepperMotor::getPosition(long step) const
 
 void StepperMotor::goToPosition(double mm, bool noLock)
 {
-    goToStep(mm / m_conversionFactor, noLock);
+    goToStep(std::lround(mm / m_conversionFactor), noLock);
 }
 
 void StepperMotor::setPosition(double mm)
 {
     {
         std::lock_guard<std::mutex> mtx(m_mtx);
-        long step = mm / m_conversionFactor;
+        long step = std::lround(mm / m_conversionFactor);
         m_currentReportedStep = step;
         m_targetStep = step;
     }

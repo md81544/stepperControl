@@ -35,6 +35,11 @@ public:
         void (*callback)(int, int, uint32_t, void*),
         void* userData)
         = 0;
+    // Stop calling back. Once these return, the callback will not be called
+    // again, so the userData object can safely be destroyed. (No-op by default
+    // so that existing implementations don't have to provide them.)
+    virtual void clearRotaryEncoderCallback() { }
+    virtual void clearLinearScaleAxis1Callback() { }
     // General:
     virtual void delayMicroSeconds(long) = 0;
     virtual uint32_t getTick() = 0;
@@ -43,6 +48,7 @@ public:
     virtual void scaleGoToPositionMm(double mm) = 0;
     virtual void scaleSetSpeedStepsPerSec(double speed) = 0;
     virtual void scaleStop() = 0;
+    virtual ~IGpio() = default;
 };
 
 } // end namespace

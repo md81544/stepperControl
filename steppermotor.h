@@ -113,8 +113,10 @@ private:
     // background thread changes any member variables
     std::mutex m_mtx;
     double m_conversionFactor;
-    double m_rpm { 0.0 };
-    double m_rampedRpm { 0.0 };
+    // Atomic as these are read without the lock by getSpeed() etc (including
+    // from another motor's thread when synchronised); writes happen under m_mtx
+    std::atomic<double> m_rpm { 0.0 };
+    std::atomic<double> m_rampedRpm { 0.0 };
     double m_maxRpm;
     unsigned int m_backlashSize { 0 };
     unsigned int m_backlashPosition { 0 };

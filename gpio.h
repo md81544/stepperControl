@@ -36,22 +36,33 @@ public:
         int pinB,
         void (*callback)(int, int, uint32_t, void*),
         void* userData) override;
+    void clearRotaryEncoderCallback() override;
+    void clearLinearScaleAxis1Callback() override;
     void delayMicroSeconds(long usecs) override;
     uint32_t getTick() override;
 
 private:
+    struct CallbackPins {
+        int pinA { -1 };
+        int pinB { -1 };
+    };
+    void clearCallback(CallbackPins& pins);
     // The following scale* functions are deliberately no-op as they are only used in the
     // mock gpio class to simulate the scale moving.
     void scaleGoToPositionMm(double) override {};
     void scaleSetSpeedStepsPerSec(double) override {};
     void scaleStop() override {};
-    void
-    setCallback(int pinA, int pinB, void (*callback)(int, int, uint32_t, void*), void* userData);
+    void setCallback(
+        CallbackPins& pins,
+        int pinA,
+        int pinB,
+        void (*callback)(int, int, uint32_t, void*),
+        void* userData);
     std::vector<int> m_stepPins;
     std::vector<int> m_reversePins;
     std::vector<int> m_enablePins;
-    int m_pinA { 0 };
-    int m_pinB { 0 };
+    CallbackPins m_rotaryEncoderPins;
+    CallbackPins m_linearScaleAxis1Pins;
 };
 
 } // end namespace

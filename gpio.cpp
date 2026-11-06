@@ -13,12 +13,8 @@ Gpio::Gpio()
 
 Gpio::~Gpio()
 {
-    if (m_pinA != 0) {
-        gpioSetAlertFuncEx(m_pinA, nullptr, this);
-    }
-    if (m_pinB != 0) {
-        gpioSetAlertFuncEx(m_pinB, nullptr, this);
-    }
+    clearRotaryEncoderCallback();
+    clearLinearScaleAxis1Callback();
     gpioTerminate();
 }
 
@@ -51,7 +47,7 @@ void Gpio::setRotaryEncoderCallback(
     void (*callback)(int, int, uint32_t, void*),
     void* user)
 {
-    setCallback(pinA, pinB, callback, user);
+    setCallback(m_rotaryEncoderPins, pinA, pinB, callback, user);
 }
 
 void Gpio::setLinearScaleAxis1Callback(
@@ -60,17 +56,42 @@ void Gpio::setLinearScaleAxis1Callback(
     void (*callback)(int, int, uint32_t, void*),
     void* user)
 {
-    setCallback(pinA, pinB, callback, user);
+    setCallback(m_linearScaleAxis1Pins, pinA, pinB, callback, user);
+}
+
+void Gpio::clearRotaryEncoderCallback()
+{
+    clearCallback(m_rotaryEncoderPins);
+}
+
+void Gpio::clearLinearScaleAxis1Callback()
+{
+    clearCallback(m_linearScaleAxis1Pins);
+}
+
+void Gpio::clearCallback(CallbackPins& pins)
+{
+    if (pins.pinA < 0) {
+        return; // not set
+    }
+    gpioSetAlertFuncEx(pins.pinA, nullptr, nullptr);
+    gpioSetAlertFuncEx(pins.pinB, nullptr, nullptr);
+    pins = CallbackPins {};
+    // pigpio's alert thread doesn't synchronise with gpioSetAlertFuncEx, so a
+    // callback may already be in flight. It dispatches roughly every
+    // millisecond, so wait long enough for any such call to have finished.
+    gpioDelay(10'000);
 }
 
 void Gpio::setCallback(
+    CallbackPins& pins,
     int pinA,
     int pinB,
     void (*callback)(int, int, uint32_t, void*),
     void* user)
 {
-    m_pinA = pinA;
-    m_pinB = pinB;
+    pins.pinA = pinA;
+    pins.pinB = pinB;
     // Set up callbacks for rotary encoder
     gpioSetMode(pinA, PI_INPUT);
     gpioSetMode(pinB, PI_INPUT);
