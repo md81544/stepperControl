@@ -7,6 +7,10 @@
 #include <cstdint>
 #include <system_error>
 
+#ifdef __linux__
+#include <sched.h> // for cpu_set_t
+#endif
+
 namespace mgo {
 
 namespace {
@@ -135,7 +139,7 @@ StepperMotor::StepperMotor(
                 } else if (!m_busy && m_synchronise && m_synchroniseMotor && !m_faulted) {
                     synchronise();
                 }
-                if (m_targetStep == m_currentReportedStep
+                if (!m_spinWhenIdle && m_targetStep == m_currentReportedStep
                     && (m_faulted || !(m_synchronise && m_synchroniseMotor))) {
                     // Idle. Rather than spinning (which would use a whole CPU
                     // core at real-time priority), sleep until woken by
@@ -484,6 +488,28 @@ void StepperMotor::synchroniseOff()
 bool StepperMotor::isRunningRealTimeScheduled()
 {
     return m_isRealTimeScheduled;
+}
+
+bool StepperMotor::setCpuCore(int core)
+{
+#ifdef __linux__
+    if (core < 0 || core >= CPU_SETSIZE) {
+        return false;
+    }
+    cpu_set_t cpus;
+    CPU_ZERO(&cpus);
+    CPU_SET(core, &cpus);
+    return ::pthread_setaffinity_np(m_thread.native_handle(), sizeof(cpus), &cpus) == 0;
+#else
+    (void)core;
+    return false;
+#endif
+}
+
+void StepperMotor::setSpinWhenIdle(bool flag)
+{
+    m_spinWhenIdle = flag;
+    m_wake.notify_all(); // if it's sleeping, it starts spinning now
 }
 
 void StepperMotor::setAlarmPin(int pin, PinState activeLevel)

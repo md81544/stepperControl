@@ -116,6 +116,18 @@ public:
     // to set the capabilities of the binary with "sudo setcap cap_sys_nice+ep build/lc"
     bool isRunningRealTimeScheduled();
 
+    // Run the motor thread only on the given CPU core (numbered from 0). This
+    // stops it sharing a core with other threads, which (as it runs at
+    // real-time priority, and spins between steps) it could otherwise starve,
+    // e.g. pigpio's callback thread. Linux only: returns false if the core
+    // couldn't be set (e.g. it doesn't exist, or on another OS)
+    bool setCpuCore(int core);
+    // By default, an idle motor thread sleeps until it has something to do.
+    // With this set, it keeps spinning instead, so its core stays busy with
+    // it, and a move can start without waiting for the thread to be woken.
+    // Best combined with setCpuCore(), on a machine with cores to spare
+    void setSpinWhenIdle(bool flag);
+
     // Optional: the motor driver's alarm (fault) output, e.g. on a closed-loop
     // driver which goes into alarm when the motor stalls. Such a driver then
     // ignores step pulses, so the motor's position is no longer known.
@@ -182,6 +194,7 @@ private:
     uint32_t m_mockLinearScaleStepsPerMm { 200 };
 
     bool m_isRealTimeScheduled { false };
+    std::atomic<bool> m_spinWhenIdle { false };
 
     // Alarm (fault) monitoring. See setAlarmPin()
     std::atomic<int> m_alarmPin { -1 }; // -1 = none
