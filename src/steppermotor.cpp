@@ -2,9 +2,10 @@
 
 #include "stepperControl/igpio.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <pthread.h>
+#include <system_error>
 
 namespace mgo {
 
@@ -13,6 +14,54 @@ namespace {
 // the step pulse's rising edge (e.g. 5µs for a DM542). Without this, the first
 // step after a reversal can be taken in the old direction.
 constexpr uint32_t DIRECTION_SETUP_MICROSECONDS = 5;
+
+// An idle motor thread is woken as soon as there's something to do; this
+// timeout is only a safety net, so it can be fairly long
+constexpr auto IDLE_WAKE_TIMEOUT = std::chrono::milliseconds(10);
+
+// Longest stop() will wait for the motor thread to act on a stop. The thread
+// checks at the start of each step period, which at the very slowest speeds
+// can be tens of milliseconds
+constexpr auto STOP_ACKNOWLEDGE_TIMEOUT = std::chrono::milliseconds(100);
+}
+
+PriorityInheritanceMutex::PriorityInheritanceMutex()
+{
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
+    int rc = pthread_mutex_init(&m_mutex, &attr);
+    pthread_mutexattr_destroy(&attr);
+    if (rc != 0) {
+        // Priority inheritance not supported; use an ordinary mutex
+        rc = pthread_mutex_init(&m_mutex, nullptr);
+    }
+    if (rc != 0) {
+        throw std::system_error(rc, std::generic_category(), "pthread_mutex_init");
+    }
+}
+
+PriorityInheritanceMutex::~PriorityInheritanceMutex()
+{
+    pthread_mutex_destroy(&m_mutex);
+}
+
+void PriorityInheritanceMutex::lock()
+{
+    const int rc = pthread_mutex_lock(&m_mutex);
+    if (rc != 0) {
+        throw std::system_error(rc, std::generic_category(), "pthread_mutex_lock");
+    }
+}
+
+void PriorityInheritanceMutex::unlock()
+{
+    pthread_mutex_unlock(&m_mutex);
+}
+
+bool PriorityInheritanceMutex::try_lock()
+{
+    return pthread_mutex_trylock(&m_mutex) == 0;
 }
 
 StepperMotor::StepperMotor(
@@ -55,22 +104,40 @@ StepperMotor::StepperMotor(
         for (;;) {
             int delay;
             uint32_t startTick = m_gpio.getTick();
-            { // scope for lock_guard
+            { // scope for lock
                 // When in this scope we can assume all member
                 // variables can be written and read from freely
                 // without them being changed externally. Other
                 // member functions must lock the mutex m_mtx
                 // before changing any member variables.
-                std::lock_guard<std::mutex> mtx(m_mtx);
+                std::unique_lock lock(m_mtx);
                 if (m_terminateThread) {
                     break;
                 }
                 if (m_stop || m_rpm == 0.0) {
                     m_targetStep = long(m_currentReportedStep);
-                    m_stop = false;
                     m_busy = false;
+                    if (m_stop) {
+                        m_stop = false;
+                        m_stopAcknowledged.notify_all();
+                    }
                 } else if (!m_busy && m_synchronise && m_synchroniseMotor) {
                     synchronise();
+                }
+                if (m_targetStep == m_currentReportedStep
+                    && !(m_synchronise && m_synchroniseMotor)) {
+                    // Idle. Rather than spinning (which would use a whole CPU
+                    // core at real-time priority), sleep until woken by
+                    // goToStep(), stop() etc. This check is at the *start* of a
+                    // step period, so the last step of a move still gets its
+                    // full period. (A synchronised motor keeps spinning, as it
+                    // must poll the other motor's position.)
+                    m_wake.wait_for(lock, IDLE_WAKE_TIMEOUT, [this] {
+                        return m_terminateThread || m_stop
+                            || m_targetStep != m_currentReportedStep
+                            || (m_synchronise && m_synchroniseMotor);
+                    });
+                    continue; // start a fresh step period
                 }
                 if (m_targetStep != m_currentReportedStep) {
                     if (oldDirection != m_direction) {
@@ -120,7 +187,7 @@ StepperMotor::StepperMotor(
                     m_delay = calculateDelayValue(m_rampedRpm);
                 }
                 delay = m_delay; // remember delay value while in mtx scope
-            } // scope for lock_guard
+            } // scope for lock
 
             // We always perform the second delay regardless of
             // whether we're stepping, to give the main thread a
@@ -135,25 +202,25 @@ StepperMotor::StepperMotor(
     // Store the thread's handle in m_thread
     m_thread.swap(t);
     // Set the thread's scheduling to be real-time; cannot do this portably:
-    sched_param schedParams;
-    schedParams.sched_priority = ::sched_get_priority_max(SCHED_RR);
-    int rc = ::pthread_setschedparam(m_thread.native_handle(), SCHED_RR, &schedParams);
-    if (rc == 0) {
-        m_isRealTimeScheduled = true;
-    }
+    const int requestedPriority = ::sched_get_priority_max(SCHED_RR);
+    sched_param schedParams {};
+    schedParams.sched_priority = requestedPriority;
+    const int rc = ::pthread_setschedparam(m_thread.native_handle(), SCHED_RR, &schedParams);
     // Check we have set priority OK
-    int policy;
+    int policy = 0;
     sched_param actual {};
     ::pthread_getschedparam(m_thread.native_handle(), &policy, &actual);
-    if (actual.sched_priority != 99) {
-        m_isRealTimeScheduled = false;
-    }
-
+    m_isRealTimeScheduled
+        = rc == 0 && policy == SCHED_RR && actual.sched_priority == requestedPriority;
 }
 
 StepperMotor::~StepperMotor()
 {
-    m_terminateThread = true;
+    {
+        std::lock_guard lock(m_mtx);
+        m_terminateThread = true;
+    }
+    m_wake.notify_all();
     m_thread.join();
 }
 
@@ -162,7 +229,7 @@ void StepperMotor::goToStep(long step, bool noLock)
     // noLock is only true when called from within the motor thread, which
     // already holds m_mtx. (NB a lock_guard inside an "if" block would be
     // released at the end of that block, so we use a deferred unique_lock.)
-    std::unique_lock<std::mutex> lock(m_mtx, std::defer_lock);
+    std::unique_lock lock(m_mtx, std::defer_lock);
     if (!noLock) {
         lock.lock();
     }
@@ -183,6 +250,7 @@ void StepperMotor::goToStep(long step, bool noLock)
     m_busy = true;
     m_stop = false;
     m_targetStep = step;
+    m_wake.notify_all();
     if (m_usingMockLinearScale) {
         // This is solely to drive the mock linear scale in step with this motor
         // (the scale* functions are no-ops on real hardware)
@@ -196,13 +264,11 @@ void StepperMotor::goToStep(long step, bool noLock)
 
 void StepperMotor::stop()
 {
-    {
-        std::lock_guard<std::mutex> mtx(m_mtx);
-        m_stop = true;
-    }
-    // Wait before returning to allow the stop to be acted on
-    // by the stepper thread
-    m_gpio.delayMicroSeconds(50'000);
+    std::unique_lock lock(m_mtx);
+    m_stop = true;
+    m_wake.notify_all();
+    // Wait for the motor thread to act on the stop (it clears m_stop)
+    m_stopAcknowledged.wait_for(lock, STOP_ACKNOWLEDGE_TIMEOUT, [this] { return !m_stop; });
 }
 
 void StepperMotor::setRpm(double rpm, bool noLock)
@@ -215,7 +281,7 @@ void StepperMotor::setRpm(double rpm, bool noLock)
     }
     // NB m_delay (in µsecs) is used TWICE per thread loop
     // See goToStep() regarding noLock
-    std::unique_lock<std::mutex> lock(m_mtx, std::defer_lock);
+    std::unique_lock lock(m_mtx, std::defer_lock);
     if (!noLock) {
         lock.lock();
     }
@@ -225,6 +291,7 @@ void StepperMotor::setRpm(double rpm, bool noLock)
         m_rpm = 0;
         m_rampedRpm = 0;
         m_stop = true;
+        m_wake.notify_all();
         return;
     }
     if (m_useRamping && rpm > m_rpm) {
@@ -266,7 +333,7 @@ double StepperMotor::getMaxRpm()
 
 int StepperMotor::getDelay()
 {
-    std::lock_guard<std::mutex> mtx(m_mtx);
+    std::lock_guard lock(m_mtx);
     return m_delay;
 }
 
@@ -283,7 +350,7 @@ long StepperMotor::getTargetStep() const
 void StepperMotor::zeroPosition()
 {
     {
-        std::lock_guard<std::mutex> mtx(m_mtx);
+        std::lock_guard lock(m_mtx);
         m_currentReportedStep = 0L;
         m_targetStep = 0L;
     }
@@ -325,7 +392,7 @@ void StepperMotor::goToPosition(double mm, bool noLock)
 void StepperMotor::setPosition(double mm)
 {
     {
-        std::lock_guard<std::mutex> mtx(m_mtx);
+        std::lock_guard lock(m_mtx);
         long step = std::lround(mm / m_conversionFactor);
         m_currentReportedStep = step;
         m_targetStep = step;
@@ -335,7 +402,7 @@ void StepperMotor::setPosition(double mm)
 
 void StepperMotor::setBacklashCompensation(unsigned int compensation, unsigned int currentPosition)
 {
-    std::lock_guard<std::mutex> mtx(m_mtx);
+    std::lock_guard lock(m_mtx);
     m_backlashSize = compensation;
     if (currentPosition > compensation) {
         m_backlashPosition = compensation;
@@ -372,7 +439,7 @@ double StepperMotor::calculateDelayValue(double rpm)
 
 void StepperMotor::enableRamping(bool flag)
 {
-    std::lock_guard<std::mutex> mtx(m_mtx);
+    std::lock_guard lock(m_mtx);
     if (m_rampingSpeed != 0.0) {
         m_useRamping = flag;
     }
@@ -384,16 +451,17 @@ void StepperMotor::synchroniseOn(
     bool useZeroAsSyncStartPos // = false
 )
 {
-    std::lock_guard<std::mutex> mtx(m_mtx);
+    std::lock_guard lock(m_mtx);
     m_synchronise = true;
     m_synchroniseMotor = other;
     m_synchroniseFunction = func;
     m_useZeroAsSyncStartPos = useZeroAsSyncStartPos;
+    m_wake.notify_all();
 }
 
 void StepperMotor::synchroniseOff()
 {
-    std::lock_guard<std::mutex> mtx(m_mtx);
+    std::lock_guard lock(m_mtx);
     m_synchronise = false;
     m_syncFirstCall = true;
 }

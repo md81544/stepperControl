@@ -1,13 +1,34 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <pthread.h>
 #include <thread>
 
 namespace mgo {
 
 class IGpio;
+
+// A mutex with priority inheritance. If a lower-priority thread (e.g. the UI)
+// holds it when a real-time motor thread needs it, the holder is temporarily
+// raised to the motor thread's priority, so it can't be pre-empted by other
+// threads while the motor waits. Falls back to an ordinary mutex if the
+// platform doesn't support priority inheritance.
+class PriorityInheritanceMutex {
+public:
+    PriorityInheritanceMutex();
+    ~PriorityInheritanceMutex();
+    PriorityInheritanceMutex(const PriorityInheritanceMutex&) = delete;
+    PriorityInheritanceMutex& operator=(const PriorityInheritanceMutex&) = delete;
+    void lock();
+    void unlock();
+    bool try_lock();
+
+private:
+    pthread_mutex_t m_mutex;
+};
 
 enum class Direction {
     forward,
@@ -49,7 +70,8 @@ public:
     // Get current delay value. Can't think of a
     // purpose for this apart from unit testing :)
     int getDelay();
-    // Stop any motion
+    // Stop any motion. Returns once the motor thread has acted on the stop
+    // (normally well under a millisecond; at most 100ms)
     void stop();
     // Block until the current operation completes
     void wait();
@@ -111,7 +133,12 @@ private:
     std::atomic<Direction> m_direction { Direction::forward };
     // lock should be taken before any code outside the
     // background thread changes any member variables
-    std::mutex m_mtx;
+    PriorityInheritanceMutex m_mtx;
+    // Wakes the motor thread when it is idle (see the thread loop), so must be
+    // notified whenever there may be something new for it to do
+    std::condition_variable_any m_wake;
+    // Notified by the motor thread when it has acted on m_stop
+    std::condition_variable_any m_stopAcknowledged;
     double m_conversionFactor;
     // Atomic as these are read without the lock by getSpeed() etc (including
     // from another motor's thread when synchronised); writes happen under m_mtx
