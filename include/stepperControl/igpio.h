@@ -40,6 +40,12 @@ public:
     // so that existing implementations don't have to provide them.)
     virtual void clearRotaryEncoderCallback() { }
     virtual void clearLinearScaleAxis1Callback() { }
+    // General-purpose inputs (e.g. a motor driver's alarm output). Must be
+    // called for a pin before reading it. pullUp enables the internal pull-up
+    // resistor (e.g. for an open-collector or opto-isolated output)
+    virtual void setInputPin(int pin, bool pullUp) = 0;
+    // Safe to call from a motor thread
+    virtual PinState readPin(int pin) = 0;
     // General:
     virtual void delayMicroSeconds(long) = 0;
     virtual uint32_t getTick() = 0;

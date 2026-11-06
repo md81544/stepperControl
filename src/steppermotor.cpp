@@ -23,6 +23,10 @@ constexpr auto IDLE_WAKE_TIMEOUT = std::chrono::milliseconds(10);
 // checks at the start of each step period, which at the very slowest speeds
 // can be tens of milliseconds
 constexpr auto STOP_ACKNOWLEDGE_TIMEOUT = std::chrono::milliseconds(100);
+
+// How long a driver's alarm output must be continuously active before we act
+// on it (to ignore electrical noise)
+constexpr uint32_t ALARM_FILTER_MICROSECONDS = 2'000;
 }
 
 PriorityInheritanceMutex::PriorityInheritanceMutex()
@@ -114,6 +118,13 @@ StepperMotor::StepperMotor(
                 if (m_terminateThread) {
                     break;
                 }
+                checkAlarm();
+                if (m_faulted) {
+                    // The driver is in alarm, so is ignoring step pulses:
+                    // stop, and don't move again until the fault is cleared
+                    m_targetStep = long(m_currentReportedStep);
+                    m_busy = false;
+                }
                 if (m_stop || m_rpm == 0.0) {
                     m_targetStep = long(m_currentReportedStep);
                     m_busy = false;
@@ -121,11 +132,11 @@ StepperMotor::StepperMotor(
                         m_stop = false;
                         m_stopAcknowledged.notify_all();
                     }
-                } else if (!m_busy && m_synchronise && m_synchroniseMotor) {
+                } else if (!m_busy && m_synchronise && m_synchroniseMotor && !m_faulted) {
                     synchronise();
                 }
                 if (m_targetStep == m_currentReportedStep
-                    && !(m_synchronise && m_synchroniseMotor)) {
+                    && (m_faulted || !(m_synchronise && m_synchroniseMotor))) {
                     // Idle. Rather than spinning (which would use a whole CPU
                     // core at real-time priority), sleep until woken by
                     // goToStep(), stop() etc. This check is at the *start* of a
@@ -238,6 +249,10 @@ void StepperMotor::goToStep(long step, bool noLock)
         // we are already stepping. The client code can
         // issue a stop if needed before changing target
         // step location.
+        return;
+    }
+    if (m_faulted) {
+        // The driver is in alarm, so we mustn't move. See setAlarmPin()
         return;
     }
     if (m_currentReportedStep == step) {
@@ -469,6 +484,55 @@ void StepperMotor::synchroniseOff()
 bool StepperMotor::isRunningRealTimeScheduled()
 {
     return m_isRealTimeScheduled;
+}
+
+void StepperMotor::setAlarmPin(int pin, PinState activeLevel)
+{
+    std::lock_guard lock(m_mtx);
+    m_gpio.setInputPin(pin, true);
+    m_alarmActiveLevel = activeLevel;
+    m_alarmActive = false;
+    m_alarmPin = pin;
+}
+
+bool StepperMotor::isFaulted() const
+{
+    return m_faulted;
+}
+
+bool StepperMotor::clearFault()
+{
+    std::lock_guard lock(m_mtx);
+    const int pin = m_alarmPin;
+    if (pin >= 0 && m_gpio.readPin(pin) == m_alarmActiveLevel) {
+        return false; // the driver is still in alarm
+    }
+    m_faulted = false;
+    m_alarmActive = false;
+    return true;
+}
+
+void StepperMotor::checkAlarm()
+{
+    const int pin = m_alarmPin;
+    if (pin < 0) {
+        return;
+    }
+    if (m_gpio.readPin(pin) != m_alarmActiveLevel) {
+        m_alarmActive = false;
+        return;
+    }
+    const uint32_t now = m_gpio.getTick();
+    if (!m_alarmActive) {
+        // Only act if it stays active, so a brief spike of electrical noise
+        // can't stop the motor (e.g. part way through cutting a thread)
+        m_alarmActive = true;
+        m_alarmActiveSince = now;
+        return;
+    }
+    if (!m_faulted && now - m_alarmActiveSince >= ALARM_FILTER_MICROSECONDS) {
+        m_faulted = true;
+    }
 }
 
 void StepperMotor::synchronise()

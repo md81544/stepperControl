@@ -38,6 +38,8 @@ public:
         void* userData) override;
     void clearRotaryEncoderCallback() override;
     void clearLinearScaleAxis1Callback() override;
+    void setInputPin(int pin, bool pullUp) override;
+    PinState readPin(int pin) override;
     void delayMicroSeconds(long usecs) override;
     uint32_t getTick() override;
 

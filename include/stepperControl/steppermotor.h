@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stepperControl/igpio.h" // for PinState
+
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -114,7 +116,25 @@ public:
     // to set the capabilities of the binary with "sudo setcap cap_sys_nice+ep build/lc"
     bool isRunningRealTimeScheduled();
 
+    // Optional: the motor driver's alarm (fault) output, e.g. on a closed-loop
+    // driver which goes into alarm when the motor stalls. Such a driver then
+    // ignores step pulses, so the motor's position is no longer known.
+    // The pin is set as an input with the internal pull-up enabled (suitable
+    // for an opto-isolated or open-collector output). If it reads activeLevel
+    // continuously for a short time (2ms, to ignore electrical noise), the motor
+    // becomes "faulted": it stops at once, and ignores all requests to move
+    // until clearFault() succeeds.
+    void setAlarmPin(int pin, PinState activeLevel);
+    bool isFaulted() const;
+    // Clears a fault, but only if the driver's alarm is no longer active.
+    // Returns true if the motor is no longer faulted. NB the position is
+    // still wrong after a fault; the caller must deal with that (e.g. by
+    // re-zeroing)
+    bool clearFault();
+
 private:
+    // Called by the motor thread (with the lock held) to monitor the alarm pin
+    void checkAlarm();
     // Internal, only to be used from within an existing lock scope:
     void synchronise();
     int m_motorNumber { 0 };
@@ -162,6 +182,14 @@ private:
     uint32_t m_mockLinearScaleStepsPerMm { 200 };
 
     bool m_isRealTimeScheduled { false };
+
+    // Alarm (fault) monitoring. See setAlarmPin()
+    std::atomic<int> m_alarmPin { -1 }; // -1 = none
+    std::atomic<PinState> m_alarmActiveLevel { PinState::low };
+    std::atomic<bool> m_faulted { false };
+    // These are guarded by m_mtx:
+    bool m_alarmActive { false };
+    uint32_t m_alarmActiveSince { 0 };
 };
 
 } // end namespace

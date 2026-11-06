@@ -6,6 +6,7 @@
 
 #include "igpio.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <fstream>
@@ -32,6 +33,9 @@ public:
         : m_print(printDiags)
         , m_options(options)
     {
+        for (auto& high : m_inputPinHigh) {
+            high = true;
+        }
         print() << "Initialising GPIO library\n";
     }
 
@@ -96,9 +100,33 @@ public:
 
     uint32_t getTick() override
     {
+        // (steady_clock, as the system clock can be adjusted while we run)
         return std::chrono::duration_cast<std::chrono::microseconds>(
-                   std::chrono::system_clock::now().time_since_epoch())
+                   std::chrono::steady_clock::now().time_since_epoch())
             .count();
+    }
+
+    void setInputPin(int pin, bool) override
+    {
+        print() << "Setting pin " << pin << " as an input\n";
+    }
+
+    PinState readPin(int pin) override
+    {
+        if (pin < 0 || pin >= static_cast<int>(m_inputPinHigh.size())) {
+            return PinState::high;
+        }
+        return m_inputPinHigh[pin] ? PinState::high : PinState::low;
+    }
+
+    // Mock-only: set the level an input pin reads as (e.g. to simulate a
+    // motor driver's alarm output). Inputs read high until set, as a
+    // pulled-up input with nothing driving it would
+    void setInputPinLevel(int pin, PinState state)
+    {
+        if (pin >= 0 && pin < static_cast<int>(m_inputPinHigh.size())) {
+            m_inputPinHigh[pin] = state == PinState::high;
+        }
     }
 
     void stopRotaryEncoderCallback()
@@ -283,6 +311,8 @@ public:
     }
 
 private:
+    // Simulated input pin levels (atomic, as read from motor threads)
+    std::array<std::atomic<bool>, 64> m_inputPinHigh;
     std::atomic<bool> m_terminateRotary { false };
     std::atomic<bool> m_terminateScale { false };
     std::atomic<double> m_targetPosition { 0.0 };

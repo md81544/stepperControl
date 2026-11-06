@@ -101,6 +101,18 @@ void Gpio::setCallback(
     gpioSetAlertFuncEx(pinB, callback, user);
 }
 
+void Gpio::setInputPin(int pin, bool pullUp)
+{
+    gpioSetMode(pin, PI_INPUT);
+    gpioSetPullUpDown(pin, pullUp ? PI_PUD_UP : PI_PUD_OFF);
+}
+
+PinState Gpio::readPin(int pin)
+{
+    // gpioRead() just reads a register, so is cheap enough to call every step
+    return gpioRead(pin) ? PinState::high : PinState::low;
+}
+
 void Gpio::delayMicroSeconds(long usecs)
 {
     gpioDelay(usecs);
