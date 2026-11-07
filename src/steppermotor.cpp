@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <mutex>
 #include <system_error>
 
 #ifdef __linux__

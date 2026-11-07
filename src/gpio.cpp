@@ -1,5 +1,7 @@
 #include "stepperControl/gpio.h"
 
+#include <pigpio.h>
+
 namespace mgo {
 
 Gpio::Gpio()

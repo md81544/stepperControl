@@ -3,7 +3,6 @@
 // Concrete implementation of the IGpio ABC
 
 #include "igpio.h"
-#include <pigpio.h>
 
 #include <stdexcept>
 #include <vector>
