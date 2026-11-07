@@ -2,6 +2,7 @@
 
 #include "stepperControl/igpio.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -129,24 +130,31 @@ StepperMotor::StepperMotor(
                     m_targetStep = long(m_currentReportedStep);
                     m_busy = false;
                 }
+                if (m_faulted || m_stop) {
+                    m_following = false;
+                }
                 if (m_stop || m_rpm == 0.0) {
                     m_targetStep = long(m_currentReportedStep);
                     m_busy = false;
+                    m_following = false;
                     if (m_stop) {
                         m_stop = false;
                         m_stopAcknowledged.notify_all();
                     }
+                } else if (m_following) {
+                    follow();
                 } else if (!m_busy && m_synchronise && m_synchroniseMotor && !m_faulted) {
                     synchronise();
                 }
-                if (!m_spinWhenIdle && m_targetStep == m_currentReportedStep
+                if (!m_spinWhenIdle && !m_following && m_targetStep == m_currentReportedStep
                     && (m_faulted || !(m_synchronise && m_synchroniseMotor))) {
                     // Idle. Rather than spinning (which would use a whole CPU
                     // core at real-time priority), sleep until woken by
                     // goToStep(), stop() etc. This check is at the *start* of a
                     // step period, so the last step of a move still gets its
-                    // full period. (A synchronised motor keeps spinning, as it
-                    // must poll the other motor's position.)
+                    // full period. (A synchronised or following motor keeps
+                    // spinning, as it must poll the other motor's position, or
+                    // its target.)
                     m_wake.wait_for(lock, IDLE_WAKE_TIMEOUT, [this] {
                         return m_terminateThread || m_stop
                             || m_targetStep != m_currentReportedStep
@@ -188,7 +196,7 @@ StepperMotor::StepperMotor(
                         }
                         ++m_currentActualStep; // This is only used for testing
                     }
-                    if (m_currentReportedStep == m_targetStep) {
+                    if (m_currentReportedStep == m_targetStep && !m_following) {
                         m_busy = false;
                     }
                 }
@@ -483,6 +491,53 @@ void StepperMotor::synchroniseOff()
     std::lock_guard lock(m_mtx);
     m_synchronise = false;
     m_syncFirstCall = true;
+}
+
+void StepperMotor::followTo(long endStep, std::function<long()> targetStep)
+{
+    std::lock_guard lock(m_mtx);
+    if (m_busy || m_faulted || m_currentReportedStep == endStep) {
+        return;
+    }
+    m_followTarget = std::move(targetStep);
+    m_followStart = m_currentReportedStep;
+    m_followEnd = endStep;
+    m_following = true;
+    m_busy = true;
+    m_stop = false;
+    m_wake.notify_all();
+}
+
+bool StepperMotor::isFollowing() const
+{
+    return m_following;
+}
+
+void StepperMotor::follow()
+{
+    const long current = m_currentReportedStep;
+    if (current == m_followEnd) {
+        m_following = false;
+        m_busy = false;
+        m_targetStep = current;
+        m_followTarget = nullptr;
+        return;
+    }
+    // (Kept between the start and the end)
+    const long low = std::min(m_followStart, m_followEnd);
+    const long high = std::max(m_followStart, m_followEnd);
+    const long target = std::clamp(m_followTarget(), low, high);
+    if (m_usingMockLinearScale && target != m_targetStep) {
+        // (As in goToStep(), to drive the mock linear scale with this motor)
+        m_gpio.scaleGoToPositionMm(target * m_conversionFactor);
+        m_gpio.scaleSetSpeedStepsPerSec(getSpeed() / 60.0 * m_mockLinearScaleStepsPerMm);
+    }
+    m_targetStep = target;
+    if (target > current) {
+        m_direction = Direction::forward;
+    } else if (target < current) {
+        m_direction = Direction::reverse;
+    }
 }
 
 bool StepperMotor::isRunningRealTimeScheduled()

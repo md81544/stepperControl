@@ -109,6 +109,20 @@ public:
         std::function<double(double posDelta, double pos)> func,
         bool useZeroAsStartPos = false);
     void synchroniseOff();
+    // Follow a moving target, e.g. a position worked out from a spindle's
+    // encoder (as for an "electronic leadscrew"). Before each step period, the
+    // motor thread calls targetStep() and, if the motor isn't there, takes one
+    // step towards it. So the motor keeps up with a target moving at up to the
+    // speed set (with setSpeed(); ramping, if enabled, applies as usual), and
+    // the speed should be set a little higher than the target needs.
+    // The target is kept between the step the motor is on now and endStep
+    // (it may move back and forth between them). Following ends when the
+    // motor reaches endStep, or on stop(); isRunning() is true meanwhile, and
+    // goToStep() is ignored. Does nothing if the motor is already running.
+    // targetStep() is called from the motor thread, with the motor's lock
+    // held, so must be quick, and mustn't call this motor's functions.
+    void followTo(long endStep, std::function<long()> targetStep);
+    bool isFollowing() const;
     // A return of false here indicates an error setting thread
     // scheduling (probably the binary wasn't run as root). We shouldn't
     // get here on production hardware as the pigpio *requires* root.
@@ -185,6 +199,13 @@ private:
     bool m_synchronise { false };
     const StepperMotor* m_synchroniseMotor { nullptr };
     std::function<double(double, double)> m_synchroniseFunction;
+    // See followTo(). Guarded by m_mtx (m_following is also read without it)
+    std::atomic<bool> m_following { false };
+    std::function<long()> m_followTarget;
+    long m_followStart { 0 };
+    long m_followEnd { 0 };
+    // Internal, only to be used from within an existing lock scope:
+    void follow();
 
     bool m_syncFirstCall { true };
     double m_syncOtherStartPos;

@@ -129,6 +129,13 @@ public:
         }
     }
 
+    // Changes the delay between the simulated rotary encoder's pulses (i.e.
+    // the spindle's speed) while it runs
+    void setRotaryEncoderDelayMicroseconds(long delay)
+    {
+        m_rotaryEncoderDelayMicroseconds = delay;
+    }
+
     void stopRotaryEncoderCallback()
     {
         // class-specific function to allow us to stop the
@@ -171,7 +178,7 @@ public:
             pin1 = pinB;
             pin2 = pinA;
         }
-        const long delayMicroseconds = m_options.rotaryEncoderDelayMicroseconds;
+        m_rotaryEncoderDelayMicroseconds = m_options.rotaryEncoderDelayMicroseconds;
         auto t = std::thread([=, this]() {
             using namespace std::chrono;
             for (;;) {
@@ -192,7 +199,8 @@ public:
                         break;
                     }
                     callback(pin2, 0, getTick(), userData);
-                    std::this_thread::sleep_for(microseconds(delayMicroseconds));
+                    std::this_thread::sleep_for(
+                        microseconds(m_rotaryEncoderDelayMicroseconds.load()));
                 } catch (const std::exception& e) {
                     print() << e.what() << std::endl;
                     break;
@@ -318,6 +326,7 @@ private:
     std::atomic<double> m_targetPosition { 0.0 };
     std::atomic<double> m_microsecsPerStep { 0.01 };
     std::thread m_rotaryEncoderCallbackerThread;
+    std::atomic<long> m_rotaryEncoderDelayMicroseconds { 250 };
     std::thread m_linearScaleAxis1CallbackerThread;
     int32_t m_stepCount {
         0
