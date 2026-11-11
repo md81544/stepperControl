@@ -33,6 +33,10 @@ constexpr auto STOP_ACKNOWLEDGE_TIMEOUT = std::chrono::milliseconds(100);
 // How long a driver's alarm output must be continuously active before we act
 // on it (to ignore electrical noise)
 constexpr uint32_t ALARM_FILTER_MICROSECONDS = 2'000;
+
+// Likewise for a limit switch (also long enough for most switches' contact
+// bounce to settle)
+constexpr uint32_t LIMIT_FILTER_MICROSECONDS = 2'000;
 }
 
 PriorityInheritanceMutex::PriorityInheritanceMutex()
@@ -125,13 +129,16 @@ StepperMotor::StepperMotor(
                     break;
                 }
                 checkAlarm();
-                if (m_faulted) {
-                    // The driver is in alarm, so is ignoring step pulses:
-                    // stop, and don't move again until the fault is cleared
+                checkLimit();
+                const bool blocked = isBlocked();
+                if (blocked) {
+                    // The driver is in alarm (so is ignoring step pulses), or
+                    // a limit switch has tripped: stop, and don't move again
+                    // until the fault or trip is cleared
                     m_targetStep = long(m_currentReportedStep);
                     m_busy = false;
                 }
-                if (m_faulted || m_stop) {
+                if (blocked || m_stop) {
                     m_following = false;
                 }
                 if (m_stop || m_rpm == 0.0) {
@@ -144,11 +151,11 @@ StepperMotor::StepperMotor(
                     }
                 } else if (m_following) {
                     follow();
-                } else if (!m_busy && m_synchronise && m_synchroniseMotor && !m_faulted) {
+                } else if (!m_busy && m_synchronise && m_synchroniseMotor && !blocked) {
                     synchronise();
                 }
                 if (!m_spinWhenIdle && !m_following && m_targetStep == m_currentReportedStep
-                    && (m_faulted || !(m_synchronise && m_synchroniseMotor))) {
+                    && (blocked || !(m_synchronise && m_synchroniseMotor))) {
                     // Idle. Rather than spinning (which would use a whole CPU
                     // core at real-time priority), sleep until woken by
                     // goToStep(), stop() etc. This check is at the *start* of a
@@ -157,8 +164,7 @@ StepperMotor::StepperMotor(
                     // spinning, as it must poll the other motor's position, or
                     // its target.)
                     m_wake.wait_for(lock, IDLE_WAKE_TIMEOUT, [this] {
-                        return m_terminateThread || m_stop
-                            || m_targetStep != m_currentReportedStep
+                        return m_terminateThread || m_stop || m_targetStep != m_currentReportedStep
                             || (m_synchronise && m_synchroniseMotor);
                     });
                     continue; // start a fresh step period
@@ -269,6 +275,10 @@ void StepperMotor::goToStep(long step, bool noLock)
         return;
     }
     if (m_currentReportedStep == step) {
+        return;
+    }
+    if (limitTrippedBeforeMove()) {
+        // See setLimitPin()
         return;
     }
     m_direction = Direction::forward;
@@ -497,7 +507,7 @@ void StepperMotor::synchroniseOff()
 void StepperMotor::followTo(long endStep, std::function<long()> targetStep)
 {
     std::lock_guard lock(m_mtx);
-    if (m_busy || m_faulted || m_currentReportedStep == endStep) {
+    if (m_busy || m_faulted || m_currentReportedStep == endStep || limitTrippedBeforeMove()) {
         return;
     }
     m_followTarget = std::move(targetStep);
@@ -615,6 +625,88 @@ void StepperMotor::checkAlarm()
     if (!m_faulted && now - m_alarmActiveSince >= ALARM_FILTER_MICROSECONDS) {
         m_faulted = true;
     }
+}
+
+void StepperMotor::setLimitPin(int pin, PinState activeLevel)
+{
+    std::lock_guard lock(m_mtx);
+    m_gpio.setInputPin(pin, true);
+    m_limitActiveLevel = activeLevel;
+    m_limitActive = false;
+    m_limitArmed = true;
+    m_limitTripped = false;
+    m_limitPin = pin;
+}
+
+bool StepperMotor::isLimitTripped() const
+{
+    return m_limitTripped;
+}
+
+bool StepperMotor::isLimitSwitchActive()
+{
+    const int pin = m_limitPin;
+    return pin >= 0 && m_gpio.readPin(pin) == m_limitActiveLevel;
+}
+
+void StepperMotor::clearLimitTrip()
+{
+    std::lock_guard lock(m_mtx);
+    m_limitTripped = false;
+    m_limitActive = false;
+    // (Read here, rather than relying on the motor thread having seen it: an
+    // idle motor's thread may not have)
+    if (isLimitSwitchActive()) {
+        m_limitArmed = false;
+    }
+}
+
+void StepperMotor::checkLimit()
+{
+    const int pin = m_limitPin;
+    if (pin < 0) {
+        return;
+    }
+    if (m_gpio.readPin(pin) != m_limitActiveLevel) {
+        m_limitActive = false;
+        m_limitArmed = true;
+        return;
+    }
+    if (!m_limitArmed || m_limitTripped) {
+        return;
+    }
+    const uint32_t now = m_gpio.getTick();
+    if (!m_limitActive) {
+        // Only act if it stays active, so a brief spike of electrical noise
+        // can't stop the motor (e.g. part way through cutting a thread)
+        m_limitActive = true;
+        m_limitActiveSince = now;
+        return;
+    }
+    if (now - m_limitActiveSince >= LIMIT_FILTER_MICROSECONDS) {
+        m_limitTripped = true;
+        m_limitArmed = false;
+    }
+}
+
+bool StepperMotor::limitTrippedBeforeMove()
+{
+    if (m_limitTripped) {
+        return true;
+    }
+    // (Not filtered, unlike checkLimit(): at worst, noise refuses a move,
+    // which is safe)
+    if (m_limitArmed && isLimitSwitchActive()) {
+        m_limitTripped = true;
+        m_limitArmed = false;
+        m_limitActive = false;
+    }
+    return m_limitTripped;
+}
+
+bool StepperMotor::isBlocked() const
+{
+    return m_faulted || m_limitTripped;
 }
 
 void StepperMotor::synchronise()

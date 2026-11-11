@@ -157,9 +157,38 @@ public:
     // re-zeroing)
     bool clearFault();
 
+    // Optional: limit switches, e.g. at the ends of an axis's travel. Several
+    // switches can share one pin (e.g. normally-closed switches wired in
+    // series, so that any of them opening, or a broken wire, reads as active),
+    // and several motors can be given the same pin, so any switch stops them
+    // all. The pin is set as an input with the internal pull-up enabled. If
+    // it reads activeLevel continuously for a short time (2ms, to ignore
+    // electrical noise and contact bounce), the motor "trips": it stops at
+    // once, and ignores all requests to move until clearLimitTrip(). (Unlike
+    // a fault, the position is still right.) A motor which is asked to move
+    // while the pin is already active trips at once instead (e.g. an idle
+    // motor, whose thread may not have seen the switch close)
+    void setLimitPin(int pin, PinState activeLevel);
+    bool isLimitTripped() const;
+    // Whether the limit pin reads active now (e.g. a switch is still
+    // pressed). False if there's no limit pin
+    bool isLimitSwitchActive();
+    // Clears a trip, so the motor can move again (e.g. off the switch). If the
+    // pin is still active, it won't trip again until the pin has gone
+    // inactive (the switch released), so it can be moved off the switch; once
+    // released, the switch trips it again as usual
+    void clearLimitTrip();
+
 private:
     // Called by the motor thread (with the lock held) to monitor the alarm pin
     void checkAlarm();
+    // Called by the motor thread (with the lock held) to monitor the limit pin
+    void checkLimit();
+    // Called with the lock held before a move starts: trips at once if the
+    // limit pin is active (and armed). Returns true if the motor is tripped
+    bool limitTrippedBeforeMove();
+    // Whether the motor mustn't move (faulted, or a limit switch tripped)
+    bool isBlocked() const;
     // Internal, only to be used from within an existing lock scope:
     void synchronise();
     int m_motorNumber { 0 };
@@ -223,6 +252,17 @@ private:
     // These are guarded by m_mtx:
     bool m_alarmActive { false };
     uint32_t m_alarmActiveSince { 0 };
+
+    // Limit switch monitoring. See setLimitPin()
+    std::atomic<int> m_limitPin { -1 }; // -1 = none
+    std::atomic<PinState> m_limitActiveLevel { PinState::high };
+    std::atomic<bool> m_limitTripped { false };
+    // These are guarded by m_mtx:
+    bool m_limitActive { false };
+    uint32_t m_limitActiveSince { 0 };
+    // False after a trip (or a clear while the pin is active) until the pin
+    // has gone inactive, so a switch still pressed doesn't trip it again
+    bool m_limitArmed { true };
 };
 
 } // end namespace
