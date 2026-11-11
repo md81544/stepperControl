@@ -181,26 +181,48 @@ public:
         m_rotaryEncoderDelayMicroseconds = m_options.rotaryEncoderDelayMicroseconds;
         auto t = std::thread([=, this]() {
             using namespace std::chrono;
+            // Each pulse is due a delay after the one before was due, and is
+            // given that time as its tick, whenever this thread gets to send
+            // it. That's as pigpio does: it samples the pins, and its
+            // callbacks pass the time of each edge, however late they run.
+            // Otherwise a late wake-up would look like a gap in the pulses,
+            // which the rotary encoder takes as lost pulses; and as a sleep
+            // can overshoot (on Linux, a 50 us sleep takes over 100 us, and a
+            // busy desktop can delay a wake-up by a few ms), the spindle would
+            // run slower than asked for, by an amount varying from machine to
+            // machine. A late pulse is followed at once by any others that are
+            // due, so the average speed is the one asked for
+            auto due = steady_clock::now();
             for (;;) {
                 try {
+                    const auto tick = static_cast<uint32_t>(
+                        duration_cast<microseconds>(due.time_since_epoch()).count());
                     if (m_terminateRotary) {
                         break;
                     }
-                    callback(pin1, 1, getTick(), userData);
+                    callback(pin1, 1, tick, userData);
                     if (m_terminateRotary) {
                         break;
                     }
-                    callback(pin2, 1, getTick(), userData);
+                    callback(pin2, 1, tick, userData);
                     if (m_terminateRotary) {
                         break;
                     }
-                    callback(pin1, 0, getTick(), userData);
+                    callback(pin1, 0, tick, userData);
                     if (m_terminateRotary) {
                         break;
                     }
-                    callback(pin2, 0, getTick(), userData);
-                    std::this_thread::sleep_for(
-                        microseconds(m_rotaryEncoderDelayMicroseconds.load()));
+                    callback(pin2, 0, tick, userData);
+                    due += microseconds(m_rotaryEncoderDelayMicroseconds.load());
+                    const auto now = steady_clock::now();
+                    if (now - due > milliseconds(100)) {
+                        // Far behind (this thread wasn't run for a long
+                        // time): carry on from now, rather than send a
+                        // long burst of pulses, all at once, to catch up
+                        due = now;
+                    } else if (due > now) {
+                        std::this_thread::sleep_until(due);
+                    }
                 } catch (const std::exception& e) {
                     print() << e.what() << std::endl;
                     break;
